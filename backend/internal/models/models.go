@@ -1,0 +1,75 @@
+package models
+
+import (
+	"time"
+
+	"go.mongodb.org/mongo-driver/bson/primitive"
+)
+
+type Family struct {
+	ID        primitive.ObjectID   `json:"id" bson:"_id,omitempty"`
+	Name      string               `json:"name" bson:"name"`
+	Email     string               `json:"email" bson:"email"`
+	GoogleID  string               `json:"google_id" bson:"google_id"`
+	Picture   string               `json:"picture" bson:"picture"`
+	Address   string               `json:"address" bson:"address"`
+	Allergies string               `json:"allergies" bson:"allergies"`
+	GroupIDs  []primitive.ObjectID `json:"group_ids" bson:"group_ids,omitempty"`
+}
+
+type Group struct {
+	ID       primitive.ObjectID `json:"id" bson:"_id,omitempty"`
+	Name     string             `json:"name" bson:"name"`
+	AdminID  primitive.ObjectID `json:"admin_id" bson:"admin_id"`
+	JoinCode string             `json:"join_code" bson:"join_code"`
+}
+
+type Event struct {
+	ID            primitive.ObjectID   `json:"id" bson:"_id,omitempty"`
+	GroupID       primitive.ObjectID   `json:"group_id" bson:"group_id"`
+	Date          time.Time            `json:"date" bson:"date"`
+	Type          string               `json:"type" bson:"type"` // Dinner, Lunch, Coffee
+	HostID        primitive.ObjectID   `json:"host_id" bson:"host_id"`
+	HostName      string               `json:"host_name,omitempty" bson:"-"`
+	Location      string               `json:"location" bson:"location"`
+	Description   string               `json:"description" bson:"description"`
+	Recurrence    string               `json:"recurrence,omitempty" bson:"recurrence,omitempty"`       // Weekly, Bi-Weekly
+	RecurrenceID  primitive.ObjectID   `json:"recurrence_id,omitempty" bson:"recurrence_id,omitempty"` // ID linking the series
+	GuestIDs      []primitive.ObjectID `json:"guest_ids,omitempty" bson:"guest_ids,omitempty"`
+	GuestJoinCode string               `json:"guest_join_code" bson:"guest_join_code"`
+}
+
+type RSVP struct {
+	ID            primitive.ObjectID `json:"id" bson:"_id,omitempty"`
+	EventID       primitive.ObjectID `json:"event_id" bson:"event_id"`
+	FamilyID      primitive.ObjectID `json:"family_id" bson:"family_id"`
+	FamilyName    string             `json:"family_name,omitempty" bson:"-"`
+	FamilyPicture string             `json:"family_picture,omitempty" bson:"-"`
+	Status        string             `json:"status" bson:"status"` // Yes, No, Maybe
+	Count         int                `json:"count" bson:"count"`   // Total count or Adult count? Let's assume Adults + Kids or just Adults. User said "ask for number of people... and any kids". Let's use Count for Adults/Total and KidsCount for kids.
+	KidsCount     int                `json:"kids_count" bson:"kids_count"`
+}
+
+type Dish struct {
+	ID          primitive.ObjectID  `json:"id" bson:"_id,omitempty"`
+	EventID     primitive.ObjectID  `json:"event_id" bson:"event_id"`
+	Name        string              `json:"name" bson:"name"`
+	Description string              `json:"description" bson:"description"`
+	BringerID   *primitive.ObjectID `json:"bringer_id" bson:"bringer_id,omitempty"` // Nullable
+	BringerName string              `json:"bringer_name,omitempty" bson:"-"`
+	IsHostDish  bool                `json:"is_host_dish" bson:"is_host_dish"`
+	IsRequested bool                `json:"is_requested" bson:"is_requested"`
+}
+
+type SwapRequest struct {
+	ID                   primitive.ObjectID  `json:"id" bson:"_id,omitempty"`
+	EventID              primitive.ObjectID  `json:"event_id" bson:"event_id"`
+	DishID               *primitive.ObjectID `json:"dish_id,omitempty" bson:"dish_id,omitempty"`
+	Type                 string              `json:"type" bson:"type"` // "dish" or "host"
+	RequestingFamilyID   primitive.ObjectID  `json:"requesting_family_id" bson:"requesting_family_id"`
+	RequestingFamilyName string              `json:"requesting_family_name,omitempty" bson:"-"`
+	TargetFamilyID       *primitive.ObjectID `json:"target_family_id" bson:"target_family_id,omitempty"`
+	TargetFamilyName     string              `json:"target_family_name,omitempty" bson:"-"`
+	Status               string              `json:"status" bson:"status"` // Pending, Approved, Rejected
+	CreatedAt            time.Time           `json:"created_at" bson:"created_at"`
+}
