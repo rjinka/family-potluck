@@ -32,7 +32,6 @@ func main() {
 	})
 
 	mux.HandleFunc("POST /auth/google", server.GoogleLogin)
-	mux.HandleFunc("POST /auth/dev", server.DevLogin)
 	mux.HandleFunc("POST /auth/logout", server.Logout)
 	mux.HandleFunc("GET /auth/me", server.GetMe)
 	mux.HandleFunc("POST /groups", server.CreateGroup)

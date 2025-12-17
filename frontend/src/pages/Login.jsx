@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { UtensilsCrossed } from 'lucide-react';
 
 const Login = () => {
-    const { login, devLogin } = useAuth();
+    const { login } = useAuth();
     const navigate = useNavigate();
 
     const handleSuccess = async (credentialResponse) => {
@@ -14,15 +14,6 @@ const Login = () => {
             navigate('/groups');
         } catch (error) {
             console.error("Login Failed", error);
-        }
-    };
-
-    const handleDevLogin = async (email, name) => {
-        try {
-            await devLogin(email, name);
-            navigate('/groups');
-        } catch (error) {
-            console.error("Dev Login Failed", error);
         }
     };
 
@@ -51,23 +42,6 @@ const Login = () => {
                 <p className="mt-6 text-sm text-gray-400">
                     Sign in with Google to join your family group.
                 </p>
-
-                {/* Dev Login */}
-                <div className="mt-8 border-t pt-6">
-                    <h3 className="text-sm font-semibold text-gray-500 mb-4">Dev Login</h3>
-                    <form onSubmit={(e) => {
-                        e.preventDefault();
-                        const email = e.target.email.value;
-                        const name = e.target.name.value;
-                        handleDevLogin(email, name);
-                    }} className="space-y-3">
-                        <input name="email" placeholder="Email" className="w-full p-2 border rounded" required />
-                        <input name="name" placeholder="Name" className="w-full p-2 border rounded" required />
-                        <button type="submit" className="w-full bg-gray-800 text-white py-2 rounded hover:bg-gray-700">
-                            Dev Login
-                        </button>
-                    </form>
-                </div>
             </div>
         </div>
     );

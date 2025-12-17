@@ -33,17 +33,6 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    const devLogin = async (email, name) => {
-        try {
-            const response = await api.post('/auth/dev', { email, name });
-            setUser(response.data);
-            return response.data;
-        } catch (error) {
-            console.error("Dev Login failed", error);
-            throw error;
-        }
-    };
-
     const refreshUser = async () => {
         await checkAuth();
     };
@@ -58,7 +47,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ user, login, devLogin, logout, loading, refreshUser }}>
+        <AuthContext.Provider value={{ user, login, logout, loading, refreshUser }}>
             {children}
         </AuthContext.Provider>
     );
