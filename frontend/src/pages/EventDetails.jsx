@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useWebSocket } from '../context/WebSocketContext';
+import { toast } from 'sonner';
 import api from '../api/axios';
 import {
     Calendar, MapPin, ChefHat, ArrowLeft, CheckCircle,
@@ -61,22 +62,51 @@ const EventDetails = () => {
                 if (msgEventId === currentEventId) {
                     console.log("Refreshing RSVPs...");
                     setTimeout(() => fetchRSVPs(), 100);
+
+                    // Show toast
+                    const familyName = lastMessage.data.family_name || "Someone";
+                    const status = lastMessage.data.status;
+                    if (status === 'going') {
+                        toast.success(`${familyName} is going!`);
+                    } else if (status === 'maybe') {
+                        toast.info(`${familyName} might come.`);
+                    } else if (status === 'not_going') {
+                        toast.info(`${familyName} can't make it.`);
+                    }
                 }
             }
             if (['dish_added', 'dish_pledged', 'dish_unpledged', 'dish_deleted'].includes(lastMessage.type)) {
                 if (lastMessage.data.event_id === eventId) {
                     fetchDishes();
+
+                    if (lastMessage.type === 'dish_added') {
+                        toast.success(`New dish added: ${lastMessage.data.name}`);
+                    } else if (lastMessage.type === 'dish_pledged') {
+                        const bringerName = lastMessage.data.bringer_name || "Someone";
+                        const dishName = lastMessage.data.dish_name || "a dish";
+                        toast.success(`${bringerName} is bringing ${dishName}!`);
+                    } else if (lastMessage.type === 'dish_unpledged') {
+                        const dishName = lastMessage.data.dish_name || "A dish";
+                        toast.warning(`${dishName} is available again.`);
+                    }
                 }
             }
             if (['swap_created', 'swap_updated'].includes(lastMessage.type)) {
                 if (lastMessage.data.event_id === eventId) {
                     fetchSwapRequests();
                     fetchDishes();
+
+                    if (lastMessage.type === 'swap_created') {
+                        toast.info("New swap request received.");
+                    } else if (lastMessage.type === 'swap_updated') {
+                        toast.info(`Swap request ${lastMessage.data.status}.`);
+                    }
                 }
             }
             if (lastMessage.type === 'event_updated') {
                 if (lastMessage.data.id === eventId) {
                     fetchEventDetails();
+                    toast.info("Event details updated.");
                 }
             }
         }

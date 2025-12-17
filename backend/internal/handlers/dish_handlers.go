@@ -137,13 +137,24 @@ func (s *Server) PledgeDish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Fetch Family Name for broadcast
+	familiesCollection := s.DB.GetCollection("families")
+	var family models.Family
+	err = familiesCollection.FindOne(context.Background(), bson.M{"_id": req.FamilyID}).Decode(&family)
+	familyName := "Someone"
+	if err == nil {
+		familyName = family.Name
+	}
+
 	// Broadcast update
 	msg := map[string]interface{}{
 		"type": "dish_pledged",
 		"data": map[string]interface{}{
-			"dish_id":    id,
-			"event_id":   dish.EventID,
-			"bringer_id": req.FamilyID,
+			"dish_id":      id,
+			"event_id":     dish.EventID,
+			"bringer_id":   req.FamilyID,
+			"bringer_name": familyName,
+			"dish_name":    dish.Name,
 		},
 	}
 	msgBytes, _ := json.Marshal(msg)
@@ -184,8 +195,9 @@ func (s *Server) UnpledgeDish(w http.ResponseWriter, r *http.Request) {
 	msg := map[string]interface{}{
 		"type": "dish_unpledged",
 		"data": map[string]interface{}{
-			"dish_id":  id,
-			"event_id": dish.EventID,
+			"dish_id":   id,
+			"event_id":  dish.EventID,
+			"dish_name": dish.Name,
 		},
 	}
 	msgBytes, _ := json.Marshal(msg)

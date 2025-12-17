@@ -9,6 +9,7 @@ import Dashboard from './pages/Dashboard';
 import JoinGroup from './pages/JoinGroup';
 import JoinEvent from './pages/JoinEvent';
 import EventDetails from './pages/EventDetails';
+import { Toaster } from 'sonner';
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -35,6 +36,7 @@ function App() {
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </Router>
+          <Toaster position="top-center" richColors />
         </UIProvider>
       </WebSocketProvider>
     </AuthProvider>

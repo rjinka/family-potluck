@@ -46,6 +46,14 @@ func (s *Server) RSVPEvent(w http.ResponseWriter, r *http.Request) {
 		rsvp.ID = result.UpsertedID.(primitive.ObjectID)
 	}
 
+	// Fetch Family Name for broadcast
+	familiesCollection := s.DB.GetCollection("families")
+	var family models.Family
+	err = familiesCollection.FindOne(context.Background(), bson.M{"_id": rsvp.FamilyID}).Decode(&family)
+	if err == nil {
+		rsvp.FamilyName = family.Name
+	}
+
 	// Broadcast update
 	msg := map[string]interface{}{
 		"type": "rsvp_updated",
