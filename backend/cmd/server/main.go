@@ -47,6 +47,8 @@ func main() {
 	mux.HandleFunc("POST /events/{id}/skip", server.SkipEvent)
 	mux.HandleFunc("DELETE /events/{id}", server.DeleteEvent)
 	mux.HandleFunc("GET /events/{id}", server.GetEvent)
+	mux.HandleFunc("PATCH /events/{id}", server.UpdateEvent)
+	mux.HandleFunc("GET /events/stats/{id}", server.GetEventStats)
 	mux.HandleFunc("GET /events", server.GetEvents)
 	mux.HandleFunc("GET /events/user", server.GetUserEvents)
 	mux.HandleFunc("POST /events/join-by-code", server.JoinEventByCode)

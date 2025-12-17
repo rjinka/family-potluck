@@ -254,11 +254,14 @@ func (s *Server) FinishEvent(w http.ResponseWriter, r *http.Request) {
 	}
 	fmt.Println("FinishEvent: Successfully created next event")
 
-	// Delete the old event
-	_, err = collection.DeleteOne(context.Background(), bson.M{"_id": id})
+	// Mark the old event as completed instead of deleting
+	_, err = collection.UpdateOne(
+		context.Background(),
+		bson.M{"_id": id},
+		bson.M{"$set": bson.M{"status": "completed"}},
+	)
 	if err != nil {
-		// Log error but don't fail the request since new event is created
-		fmt.Printf("Failed to delete old event: %v\n", err)
+		fmt.Printf("Failed to mark old event as completed: %v\n", err)
 	}
 
 	// Broadcast update for new event
@@ -269,7 +272,7 @@ func (s *Server) FinishEvent(w http.ResponseWriter, r *http.Request) {
 	msgBytesNew, _ := json.Marshal(msgNew)
 	s.Hub.Broadcast(msgBytesNew)
 
-	// Broadcast deletion for old event
+	// Broadcast deletion for old event (so it's removed from dashboard)
 	msgDelete := map[string]interface{}{
 		"type": "event_deleted",
 		"data": map[string]interface{}{
@@ -375,7 +378,11 @@ func (s *Server) GetEvents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	collection := s.DB.GetCollection("events")
-	cursor, err := collection.Find(context.Background(), bson.M{"group_id": groupID})
+	filter := bson.M{
+		"group_id": groupID,
+		"status":   bson.M{"$ne": "completed"},
+	}
+	cursor, err := collection.Find(context.Background(), filter)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -1453,6 +1460,91 @@ func (s *Server) DeleteEvent(w http.ResponseWriter, r *http.Request) {
 	s.Hub.Broadcast(msgBytes)
 
 	w.WriteHeader(http.StatusOK)
+}
+
+func (s *Server) GetEventStats(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	id, err := primitive.ObjectIDFromHex(idStr)
+	if err != nil {
+		http.Error(w, "Invalid event id", http.StatusBadRequest)
+		return
+	}
+
+	collection := s.DB.GetCollection("events")
+	var event models.Event
+	err = collection.FindOne(context.Background(), bson.M{"_id": id}).Decode(&event)
+	if err != nil {
+		http.Error(w, "Event not found", http.StatusNotFound)
+		return
+	}
+
+	if event.RecurrenceID.IsZero() {
+		// Not part of a recurrence series or legacy event
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"total_occurrences": 0,
+			"host_counts":       []interface{}{},
+		})
+		return
+	}
+
+	// Find all completed events in this series
+	filter := bson.M{
+		"recurrence_id": event.RecurrenceID,
+		"status":        "completed",
+	}
+	cursor, err := collection.Find(context.Background(), filter)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer cursor.Close(context.Background())
+
+	var completedEvents []models.Event
+	if err = cursor.All(context.Background(), &completedEvents); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	totalOccurrences := len(completedEvents)
+	hostCounts := make(map[string]int)
+
+	for _, e := range completedEvents {
+		hostCounts[e.HostID.Hex()]++
+	}
+
+	// Format for response
+	type HostStat struct {
+		FamilyID   string `json:"family_id"`
+		FamilyName string `json:"family_name"`
+		Count      int    `json:"count"`
+	}
+	var stats []HostStat
+
+	familiesCollection := s.DB.GetCollection("families")
+	for hostID, count := range hostCounts {
+		hID, _ := primitive.ObjectIDFromHex(hostID)
+		var family models.Family
+		err := familiesCollection.FindOne(context.Background(), bson.M{"_id": hID}).Decode(&family)
+		name := "Unknown"
+		if err == nil {
+			name = family.Name
+		}
+		stats = append(stats, HostStat{
+			FamilyID:   hostID,
+			FamilyName: name,
+			Count:      count,
+		})
+	}
+
+	// Sort stats by count descending
+	sort.Slice(stats, func(i, j int) bool {
+		return stats[i].Count > stats[j].Count
+	})
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"total_occurrences": totalOccurrences,
+		"host_counts":       stats,
+	})
 }
 
 func (s *Server) HealthHandler(w http.ResponseWriter, r *http.Request) {

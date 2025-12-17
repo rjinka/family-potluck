@@ -5,37 +5,44 @@ import { useWebSocket } from '../context/WebSocketContext';
 import api from '../api/axios';
 import {
     Calendar, MapPin, ChefHat, ArrowLeft, CheckCircle,
-    HelpCircle, XCircle, Trash2, Plus, User, RefreshCw, Share2, Copy
+    HelpCircle, XCircle, Trash2, Plus, User, RefreshCw, Share2, Copy, BarChart2, Edit
 } from 'lucide-react';
 
 import { useUI } from '../context/UIContext';
+import EventStatsModal from '../components/EventStatsModal';
+import EventRSVPModal from '../components/EventRSVPModal';
 
 const EventDetails = () => {
-    // ... existing hooks ...
     const { eventId } = useParams();
     const { user } = useAuth();
     const { lastMessage } = useWebSocket();
     const { showToast, confirm } = useUI();
     const navigate = useNavigate();
+
     const [event, setEvent] = useState(null);
     const [dishes, setDishes] = useState([]);
+    const [rsvps, setRsvps] = useState([]);
+    const [swapRequests, setSwapRequests] = useState([]);
+    const [groupMembers, setGroupMembers] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [addingDish, setAddingDish] = useState(false);
+    const [showRSVPModal, setShowRSVPModal] = useState(false);
+    const [showHostAcceptModal, setShowHostAcceptModal] = useState(false);
+    const [showStatsModal, setShowStatsModal] = useState(false);
+    const [showRSVPListModal, setShowRSVPListModal] = useState(false);
     const [rsvpStatus, setRsvpStatus] = useState(null);
     const [newDish, setNewDish] = useState({ name: '', description: '', isRequest: false });
-    const [rsvps, setRsvps] = useState([]);
-    const [groupMembers, setGroupMembers] = useState([]);
-    const [addingDish, setAddingDish] = useState(false);
     const [copiedGuestLink, setCopiedGuestLink] = useState(false);
+    const [eventStats, setEventStats] = useState(null);
+    const [rsvpData, setRsvpData] = useState({ count: 1, kidsCount: 0 });
+    const [hostUpdateData, setHostUpdateData] = useState({ date: '', time: '', location: '' });
 
-    const [swapRequests, setSwapRequests] = useState([]);
-    const [requestingSwap, setRequestingSwap] = useState(false);
-
-    // ... useEffects ...
     useEffect(() => {
         fetchEventDetails();
         fetchDishes();
         fetchSwapRequests();
         fetchRSVPs();
+        fetchEventStats();
     }, [eventId]);
 
     useEffect(() => {
@@ -110,6 +117,15 @@ const EventDetails = () => {
         }
     };
 
+    const fetchEventStats = async () => {
+        try {
+            const response = await api.get(`/events/stats/${eventId}`);
+            setEventStats(response.data);
+        } catch (error) {
+            console.error("Failed to fetch event stats", error);
+        }
+    };
+
     const fetchGroupMembers = async (groupId) => {
         try {
             const response = await api.get(`/groups/members?group_id=${groupId}`);
@@ -119,8 +135,6 @@ const EventDetails = () => {
         }
     };
 
-    const [showRSVPModal, setShowRSVPModal] = useState(false);
-    const [rsvpData, setRsvpData] = useState({ count: 1, kidsCount: 0 });
 
     const handleRSVP = (status) => {
         if (status === 'Yes') {
@@ -235,13 +249,7 @@ const EventDetails = () => {
         }
     };
 
-    const [showHostAcceptModal, setShowHostAcceptModal] = useState(false);
     const [selectedSwapRequestId, setSelectedSwapRequestId] = useState(null);
-    const [hostUpdateData, setHostUpdateData] = useState({
-        date: '',
-        time: '',
-        location: ''
-    });
 
     const handleAcceptHostSwapClick = (requestId) => {
         setSelectedSwapRequestId(requestId);
@@ -281,6 +289,39 @@ const EventDetails = () => {
         } catch (error) {
             console.error("Failed to accept host swap", error);
             showToast("Failed to accept host swap", "error");
+        }
+    };
+
+    const [showEditEventModal, setShowEditEventModal] = useState(false);
+    const [editEventData, setEditEventData] = useState({ date: '', time: '', location: '', description: '' });
+
+    const handleEditEventClick = () => {
+        const eventDate = new Date(event.date);
+        setEditEventData({
+            date: eventDate.toISOString().split('T')[0],
+            time: eventDate.toTimeString().slice(0, 5),
+            location: event.location,
+            description: event.description || ''
+        });
+        setShowEditEventModal(true);
+    };
+
+    const handleUpdateEvent = async (e) => {
+        e.preventDefault();
+        try {
+            const dateTime = new Date(`${editEventData.date}T${editEventData.time}`);
+            await api.patch(`/events/${eventId}`, {
+                date: dateTime.toISOString(),
+                location: editEventData.location,
+                description: editEventData.description,
+                user_id: user.id
+            });
+            setShowEditEventModal(false);
+            fetchEventDetails();
+            showToast("Event details updated!", "success");
+        } catch (error) {
+            console.error("Failed to update event", error);
+            showToast("Failed to update event", "error");
         }
     };
 
@@ -396,7 +437,7 @@ const EventDetails = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 pb-20">
+        <><div className="min-h-screen bg-gray-50 pb-20">
             {/* Header and Event Info ... */}
             <header className="bg-white shadow-sm sticky top-0 z-10">
                 <div className="max-w-3xl mx-auto px-4 py-4 flex items-center gap-4">
@@ -429,12 +470,32 @@ const EventDetails = () => {
                                     <User className="w-5 h-5 text-orange-500" />
                                     <span>Hosted by <span className="font-semibold">{event.host_name || 'Unknown'}</span></span>
                                 </div>
+                                {event.recurrence && (
+                                    <button
+                                        onClick={() => setShowStatsModal(true)}
+                                        className="mt-3 flex items-center gap-1.5 text-sm font-medium text-orange-600 hover:text-orange-700 bg-orange-50 hover:bg-orange-100 px-3 py-1.5 rounded-lg transition w-fit"
+                                    >
+                                        <BarChart2 className="w-4 h-4" />
+                                        View History
+                                    </button>
+                                )}
                             </div>
-                            {event.recurrence && (
-                                <span className="bg-blue-50 text-blue-600 text-xs px-3 py-1 rounded-full font-medium">
-                                    {event.recurrence}
-                                </span>
-                            )}
+                            <div className="flex flex-col items-end gap-2">
+                                {event.recurrence && (
+                                    <span className="bg-blue-50 text-blue-600 text-xs px-3 py-1 rounded-full font-medium h-fit">
+                                        {event.recurrence}
+                                    </span>
+                                )}
+                                {event.host_id === user.id && (
+                                    <button
+                                        onClick={handleEditEventClick}
+                                        className="text-gray-400 hover:text-orange-600 p-1 rounded-full hover:bg-orange-50 transition"
+                                        title="Edit Event Details"
+                                    >
+                                        <Edit className="w-5 h-5" />
+                                    </button>
+                                )}
+                            </div>
                         </div>
 
                         {(isAdmin || event.host_id === user.id) && (
@@ -489,6 +550,16 @@ const EventDetails = () => {
                                 </>
                             )}
 
+                            <div className="mb-6">
+                                <button
+                                    onClick={() => setShowRSVPListModal(true)}
+                                    className="w-full py-3 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition flex items-center justify-center gap-2"
+                                >
+                                    <User className="w-5 h-5" />
+                                    View Who's Coming ({rsvps.filter(r => r.status === 'Yes').reduce((acc, curr) => acc + (curr.count || 0), 0)} Going)
+                                </button>
+                            </div>
+
                             {/* Host Swap Actions */}
                             {event.host_id === user.id && (
                                 <div className="bg-orange-50 p-4 rounded-lg border border-orange-100">
@@ -512,83 +583,10 @@ const EventDetails = () => {
                                         onClick={() => handleAcceptHostSwapClick(swapRequests.find(req => req.type === 'host' && req.status === 'pending').id)}
                                         className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition"
                                     >
-                                        I'll Host This Event
+                                        Volunteer to Host
                                     </button>
                                 </div>
                             )}
-                        </div>
-
-                        {/* RSVP List */}
-                        <div className="mt-8 border-t border-gray-100 pt-6">
-                            <h3 className="font-semibold text-gray-800 mb-4">Who's Coming</h3>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                {/* Going */}
-                                <div className="bg-green-50 p-3 rounded-lg border border-green-100">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <CheckCircle className="w-4 h-4 text-green-600" />
-                                        <span className="font-medium text-green-800 text-sm">
-                                            Going ({rsvps.filter(r => r.status === 'Yes').length} families, {rsvps.filter(r => r.status === 'Yes').reduce((acc, r) => acc + (r.count || 1) + (r.kids_count || 0), 0)} people)
-                                        </span>
-                                    </div>
-                                    <div className="space-y-1">
-                                        {rsvps.filter(r => r.status === 'Yes').map(r => (
-                                            <div key={r.id} className="text-xs text-green-700 truncate" title={r.family_name}>
-                                                {r.family_name} <span className="text-green-600 opacity-75">({r.count || 1} adults{r.kids_count > 0 ? `, ${r.kids_count} kids` : ''})</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {/* Maybe */}
-                                <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-100">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <HelpCircle className="w-4 h-4 text-yellow-600" />
-                                        <span className="font-medium text-yellow-800 text-sm">Maybe ({rsvps.filter(r => r.status === 'Maybe').length})</span>
-                                    </div>
-                                    <div className="space-y-1">
-                                        {rsvps.filter(r => r.status === 'Maybe').map(r => (
-                                            <div key={r.id} className="text-xs text-yellow-700 truncate" title={r.family_name}>
-                                                {r.family_name}
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {/* Can't Go */}
-                                <div className="bg-red-50 p-3 rounded-lg border border-red-100">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <XCircle className="w-4 h-4 text-red-600" />
-                                        <span className="font-medium text-red-800 text-sm">Can't Go ({rsvps.filter(r => r.status === 'No').length})</span>
-                                    </div>
-                                    <div className="space-y-1">
-                                        {rsvps.filter(r => r.status === 'No').map(r => (
-                                            <div key={r.id} className="text-xs text-red-700 truncate" title={r.family_name}>
-                                                {r.family_name}
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {/* No Response */}
-                                <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <div className="w-4 h-4 rounded-full border-2 border-gray-400 flex items-center justify-center">
-                                            <span className="text-[8px] font-bold text-gray-600">?</span>
-                                        </div>
-                                        <span className="font-medium text-gray-600 text-sm">No Response</span>
-                                    </div>
-                                    <div className="space-y-1">
-                                        {groupMembers
-                                            .filter(m => !rsvps.some(r => r.family_id === m.id) && m.id !== event.host_id)
-                                            .map(m => (
-                                                <div key={m.id} className="text-xs text-gray-500 truncate" title={m.name}>
-                                                    {m.name}
-                                                </div>
-                                            ))
-                                        }
-                                    </div>
-                                </div>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -624,8 +622,7 @@ const EventDetails = () => {
                                             </p>
                                             <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${req.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
                                                 req.status === 'approved' ? 'bg-green-100 text-green-700' :
-                                                    'bg-red-100 text-red-700'
-                                                }`}>
+                                                    'bg-red-100 text-red-700'}`}>
                                                 {req.status.charAt(0).toUpperCase() + req.status.slice(1)}
                                             </span>
                                         </div>
@@ -655,6 +652,7 @@ const EventDetails = () => {
                         </div>
                     </div>
                 )}
+
 
                 {/* Dishes Section */}
                 <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
@@ -772,8 +770,7 @@ const EventDetails = () => {
                                     className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
                                     value={newDish.name}
                                     onChange={e => setNewDish({ ...newDish, name: e.target.value })}
-                                    required
-                                />
+                                    required />
                             </div>
                             <div>
                                 <textarea
@@ -781,8 +778,7 @@ const EventDetails = () => {
                                     className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
                                     rows="2"
                                     value={newDish.description}
-                                    onChange={e => setNewDish({ ...newDish, description: e.target.value })}
-                                />
+                                    onChange={e => setNewDish({ ...newDish, description: e.target.value })} />
                             </div>
 
                             {isAdmin && (
@@ -792,8 +788,7 @@ const EventDetails = () => {
                                         id="isRequest"
                                         checked={newDish.isRequest || false}
                                         onChange={e => setNewDish({ ...newDish, isRequest: e.target.checked })}
-                                        className="w-4 h-4 text-orange-600 rounded focus:ring-orange-500"
-                                    />
+                                        className="w-4 h-4 text-orange-600 rounded focus:ring-orange-500" />
                                     <label htmlFor="isRequest" className="text-sm text-gray-700">Request this dish (ask others to bring it)</label>
                                 </div>
                             )}
@@ -809,111 +804,188 @@ const EventDetails = () => {
                     </div>
                 </div>
             </main>
+        </div>
 
             {/* RSVP Modal */}
-            {showRSVPModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                    <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
-                        <h3 className="text-xl font-bold text-gray-800 mb-4">How many are coming?</h3>
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Total Adults (including you)</label>
-                                <input
-                                    type="number"
-                                    min="1"
-                                    className="w-full p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
-                                    value={rsvpData.count}
-                                    onChange={e => setRsvpData({ ...rsvpData, count: e.target.value })}
-                                />
+            {
+                showRSVPModal && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                        <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
+                            <h3 className="text-xl font-bold text-gray-800 mb-4">How many are coming?</h3>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Total Adults (including you)</label>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        className="w-full p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
+                                        value={rsvpData.count}
+                                        onChange={e => setRsvpData({ ...rsvpData, count: e.target.value })} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Kids (under 12)</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        className="w-full p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
+                                        value={rsvpData.kidsCount}
+                                        onChange={e => setRsvpData({ ...rsvpData, kidsCount: e.target.value })} />
+                                </div>
+                                <div className="flex gap-3 mt-6">
+                                    <button
+                                        onClick={() => setShowRSVPModal(false)}
+                                        className="flex-1 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={() => submitRSVP('Yes', rsvpData.count, rsvpData.kidsCount)}
+                                        className="flex-1 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium"
+                                    >
+                                        Confirm
+                                    </button>
+                                </div>
                             </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Kids (under 12)</label>
-                                <input
-                                    type="number"
-                                    min="0"
-                                    className="w-full p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
-                                    value={rsvpData.kidsCount}
-                                    onChange={e => setRsvpData({ ...rsvpData, kidsCount: e.target.value })}
-                                />
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* Host Accept Modal */}
+            {
+                showHostAcceptModal && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                        <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+                            <h3 className="text-xl font-bold text-gray-800 mb-4">Confirm Host Swap</h3>
+                            <p className="text-gray-600 mb-4">
+                                You are volunteering to host this event. You can update the event details if needed.
+                            </p>
+
+                            <div className="space-y-4 mb-6">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                                    <input
+                                        type="date"
+                                        value={hostUpdateData.date}
+                                        onChange={(e) => setHostUpdateData({ ...hostUpdateData, date: e.target.value })}
+                                        className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Time</label>
+                                    <input
+                                        type="time"
+                                        value={hostUpdateData.time}
+                                        onChange={(e) => setHostUpdateData({ ...hostUpdateData, time: e.target.value })}
+                                        className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                                    <input
+                                        type="text"
+                                        value={hostUpdateData.location}
+                                        onChange={(e) => setHostUpdateData({ ...hostUpdateData, location: e.target.value })}
+                                        className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none" />
+                                </div>
                             </div>
-                            <div className="flex gap-3 mt-6">
+
+                            <div className="flex gap-3">
                                 <button
-                                    onClick={() => setShowRSVPModal(false)}
-                                    className="flex-1 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition"
+                                    onClick={() => setShowHostAcceptModal(false)}
+                                    className="flex-1 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition"
                                 >
                                     Cancel
                                 </button>
                                 <button
-                                    onClick={() => submitRSVP('Yes', rsvpData.count, rsvpData.kidsCount)}
-                                    className="flex-1 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium"
+                                    onClick={confirmAcceptHostSwap}
+                                    className="flex-1 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
                                 >
-                                    Confirm
+                                    Confirm & Host
                                 </button>
                             </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
-            {/* Host Accept Modal */}
-            {showHostAcceptModal && (
+            {/* Edit Event Modal */}
+            {showEditEventModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
                     <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
-                        <h3 className="text-xl font-bold text-gray-800 mb-4">Confirm Host Swap</h3>
-                        <p className="text-gray-600 mb-4">
-                            You are volunteering to host this event. You can update the event details if needed.
-                        </p>
-
-                        <div className="space-y-4 mb-6">
+                        <h3 className="text-xl font-bold text-gray-800 mb-4">Edit Event Details</h3>
+                        <form onSubmit={handleUpdateEvent} className="space-y-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
                                 <input
                                     type="date"
-                                    value={hostUpdateData.date}
-                                    onChange={(e) => setHostUpdateData({ ...hostUpdateData, date: e.target.value })}
-                                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
+                                    value={editEventData.date}
+                                    onChange={(e) => setEditEventData({ ...editEventData, date: e.target.value })}
+                                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
+                                    required
                                 />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Time</label>
                                 <input
                                     type="time"
-                                    value={hostUpdateData.time}
-                                    onChange={(e) => setHostUpdateData({ ...hostUpdateData, time: e.target.value })}
-                                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
+                                    value={editEventData.time}
+                                    onChange={(e) => setEditEventData({ ...editEventData, time: e.target.value })}
+                                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
+                                    required
                                 />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
                                 <input
                                     type="text"
-                                    value={hostUpdateData.location}
-                                    onChange={(e) => setHostUpdateData({ ...hostUpdateData, location: e.target.value })}
-                                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
+                                    value={editEventData.location}
+                                    onChange={(e) => setEditEventData({ ...editEventData, location: e.target.value })}
+                                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
+                                    required
                                 />
                             </div>
-                        </div>
-
-                        <div className="flex gap-3">
-                            <button
-                                onClick={() => setShowHostAcceptModal(false)}
-                                className="flex-1 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={confirmAcceptHostSwap}
-                                className="flex-1 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-                            >
-                                Confirm & Host
-                            </button>
-                        </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                                <textarea
+                                    value={editEventData.description}
+                                    onChange={(e) => setEditEventData({ ...editEventData, description: e.target.value })}
+                                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
+                                    rows="3"
+                                />
+                            </div>
+                            <div className="flex gap-3 mt-6">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowEditEventModal(false)}
+                                    className="flex-1 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="flex-1 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition"
+                                >
+                                    Save Changes
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}
 
+            <EventStatsModal
+                isOpen={showStatsModal}
+                onClose={() => setShowStatsModal(false)}
+                stats={eventStats}
+                eventType={event.type} />
 
-        </div>
+            <EventRSVPModal
+                isOpen={showRSVPListModal}
+                onClose={() => setShowRSVPListModal(false)}
+                rsvps={rsvps}
+                groupMembers={groupMembers}
+                hostId={event.host_id}
+            />
+        </>
     );
 };
 

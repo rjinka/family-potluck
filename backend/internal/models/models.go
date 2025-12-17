@@ -37,6 +37,7 @@ type Event struct {
 	RecurrenceID  primitive.ObjectID   `json:"recurrence_id,omitempty" bson:"recurrence_id,omitempty"` // ID linking the series
 	GuestIDs      []primitive.ObjectID `json:"guest_ids,omitempty" bson:"guest_ids,omitempty"`
 	GuestJoinCode string               `json:"guest_join_code" bson:"guest_join_code"`
+	Status        string               `json:"status" bson:"status"` // scheduled, completed, cancelled
 }
 
 type RSVP struct {
