@@ -42,14 +42,15 @@ type Event struct {
 }
 
 type RSVP struct {
-	ID            primitive.ObjectID `json:"id" bson:"_id,omitempty"`
-	EventID       primitive.ObjectID `json:"event_id" bson:"event_id"`
-	FamilyID      primitive.ObjectID `json:"family_id" bson:"family_id"`
-	FamilyName    string             `json:"family_name,omitempty" bson:"-"`
-	FamilyPicture string             `json:"family_picture,omitempty" bson:"-"`
-	Status        string             `json:"status" bson:"status"` // Yes, No, Maybe
-	Count         int                `json:"count" bson:"count"`   // Total count or Adult count
-	KidsCount     int                `json:"kids_count" bson:"kids_count"`
+	ID                 primitive.ObjectID `json:"id" bson:"_id,omitempty"`
+	EventID            primitive.ObjectID `json:"event_id" bson:"event_id"`
+	FamilyID           primitive.ObjectID `json:"family_id" bson:"family_id"`
+	FamilyName         string             `json:"family_name,omitempty" bson:"-"`
+	FamilyPicture      string             `json:"family_picture,omitempty" bson:"-"`
+	Status             string             `json:"status" bson:"status"` // Yes, No, Maybe
+	Count              int                `json:"count" bson:"count"`   // Total count or Adult count
+	KidsCount          int                `json:"kids_count" bson:"kids_count"`
+	DietaryPreferences []string           `json:"dietary_preferences,omitempty" bson:"-"`
 }
 
 type Dish struct {

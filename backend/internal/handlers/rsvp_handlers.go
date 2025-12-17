@@ -101,6 +101,7 @@ func (s *Server) GetRSVPs(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			rsvps[i].FamilyName = family.Name
 			rsvps[i].FamilyPicture = family.Picture
+			rsvps[i].DietaryPreferences = family.DietaryPreferences
 		}
 	}
 

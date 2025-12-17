@@ -12,6 +12,8 @@ import {
 import { useUI } from '../context/UIContext';
 import EventStatsModal from '../components/EventStatsModal';
 import EventRSVPModal from '../components/EventRSVPModal';
+import HostSummary from '../components/HostSummary';
+import DietaryPreferencesModal from '../components/DietaryPreferencesModal';
 
 const DIETARY_TAGS = ["Vegan", "Vegetarian", "Gluten-Free", "Dairy-Free", "Nut-Free", "Spicy", "Halal", "Kosher"];
 
@@ -33,6 +35,7 @@ const EventDetails = () => {
     const [showHostAcceptModal, setShowHostAcceptModal] = useState(false);
     const [showStatsModal, setShowStatsModal] = useState(false);
     const [showRSVPListModal, setShowRSVPListModal] = useState(false);
+    const [showDietaryModal, setShowDietaryModal] = useState(false);
     const [rsvpStatus, setRsvpStatus] = useState(null);
     const [newDish, setNewDish] = useState({ name: '', description: '', isRequest: false, dietary_tags: [] });
     const [customTag, setCustomTag] = useState('');
@@ -581,6 +584,14 @@ const EventDetails = () => {
                                             Can't Go
                                         </button>
                                     </div>
+                                    <div className="mb-6 text-center">
+                                        <button
+                                            onClick={() => setShowDietaryModal(true)}
+                                            className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                                        >
+                                            Edit My Dietary Preferences
+                                        </button>
+                                    </div>
                                 </>
                             )}
 
@@ -624,6 +635,11 @@ const EventDetails = () => {
                         </div>
                     </div>
                 </div>
+
+                {/* Host Summary */}
+                {event.host_id === user.id && (
+                    <HostSummary rsvps={rsvps} dishes={dishes} />
+                )}
 
                 {/* Swap Requests Section */}
                 {activeSwapRequests.length > 0 && (
@@ -1110,7 +1126,8 @@ const EventDetails = () => {
                 isOpen={showStatsModal}
                 onClose={() => setShowStatsModal(false)}
                 stats={eventStats}
-                eventType={event.type} />
+                eventType={event.type}
+            />
 
             <EventRSVPModal
                 isOpen={showRSVPListModal}
@@ -1118,6 +1135,16 @@ const EventDetails = () => {
                 rsvps={rsvps}
                 groupMembers={groupMembers}
                 hostId={event.host_id}
+            />
+
+            <DietaryPreferencesModal
+                isOpen={showDietaryModal}
+                onClose={() => setShowDietaryModal(false)}
+                user={user}
+                onUpdate={() => {
+                    fetchRSVPs(); // Refresh to update summary
+                    showToast("Preferences updated!", "success");
+                }}
             />
         </>
     );
