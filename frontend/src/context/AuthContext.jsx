@@ -7,22 +7,26 @@ export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        // Check if user is persisted in local storage
-        const storedUser = localStorage.getItem('user');
-        if (storedUser) {
-            setUser(JSON.parse(storedUser));
+    const checkAuth = async () => {
+        try {
+            const response = await api.get('/auth/me');
+            setUser(response.data);
+        } catch (error) {
+            setUser(null);
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
+    };
+
+    useEffect(() => {
+        checkAuth();
     }, []);
 
     const login = async (idToken) => {
         try {
             const response = await api.post('/auth/google', { id_token: idToken });
-            const userData = response.data;
-            setUser(userData);
-            localStorage.setItem('user', JSON.stringify(userData));
-            return userData;
+            setUser(response.data);
+            return response.data;
         } catch (error) {
             console.error("Login failed", error);
             throw error;
@@ -32,10 +36,8 @@ export const AuthProvider = ({ children }) => {
     const devLogin = async (email, name) => {
         try {
             const response = await api.post('/auth/dev', { email, name });
-            const userData = response.data;
-            setUser(userData);
-            localStorage.setItem('user', JSON.stringify(userData));
-            return userData;
+            setUser(response.data);
+            return response.data;
         } catch (error) {
             console.error("Dev Login failed", error);
             throw error;
@@ -43,20 +45,16 @@ export const AuthProvider = ({ children }) => {
     };
 
     const refreshUser = async () => {
-        if (!user?.id) return;
-        try {
-            const response = await api.get(`/family?id=${user.id}`);
-            const userData = response.data;
-            setUser(userData);
-            localStorage.setItem('user', JSON.stringify(userData));
-        } catch (error) {
-            console.error("Failed to refresh user", error);
-        }
+        await checkAuth();
     };
 
-    const logout = () => {
+    const logout = async () => {
+        try {
+            await api.post('/auth/logout');
+        } catch (error) {
+            console.error("Logout failed", error);
+        }
         setUser(null);
-        localStorage.removeItem('user');
     };
 
     return (

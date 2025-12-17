@@ -33,6 +33,8 @@ func main() {
 
 	mux.HandleFunc("POST /auth/google", server.GoogleLogin)
 	mux.HandleFunc("POST /auth/dev", server.DevLogin)
+	mux.HandleFunc("POST /auth/logout", server.Logout)
+	mux.HandleFunc("GET /auth/me", server.GetMe)
 	mux.HandleFunc("POST /groups", server.CreateGroup)
 	mux.HandleFunc("POST /groups/leave", server.LeaveGroup)
 	mux.HandleFunc("POST /groups/join-by-code", server.JoinGroupByCode)
@@ -83,9 +85,14 @@ func main() {
 
 func enableCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*") // For development
+		// Set specific origin for credentials to work
+		origin := r.Header.Get("Origin")
+		if origin != "" {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
 
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
