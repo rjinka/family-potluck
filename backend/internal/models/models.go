@@ -7,14 +7,15 @@ import (
 )
 
 type Family struct {
-	ID        primitive.ObjectID   `json:"id" bson:"_id,omitempty"`
-	Name      string               `json:"name" bson:"name"`
-	Email     string               `json:"email" bson:"email"`
-	GoogleID  string               `json:"google_id" bson:"google_id"`
-	Picture   string               `json:"picture" bson:"picture"`
-	Address   string               `json:"address" bson:"address"`
-	Allergies string               `json:"allergies" bson:"allergies"`
-	GroupIDs  []primitive.ObjectID `json:"group_ids" bson:"group_ids,omitempty"`
+	ID                 primitive.ObjectID   `json:"id" bson:"_id,omitempty"`
+	Name               string               `json:"name" bson:"name"`
+	Email              string               `json:"email" bson:"email"`
+	GoogleID           string               `json:"google_id" bson:"google_id"`
+	Picture            string               `json:"picture" bson:"picture"`
+	Address            string               `json:"address" bson:"address"`
+	Allergies          string               `json:"allergies" bson:"allergies"`
+	DietaryPreferences []string             `json:"dietary_preferences" bson:"dietary_preferences"` // e.g., ["Vegan", "Gluten-Free"]
+	GroupIDs           []primitive.ObjectID `json:"group_ids" bson:"group_ids,omitempty"`
 }
 
 type Group struct {
@@ -47,7 +48,7 @@ type RSVP struct {
 	FamilyName    string             `json:"family_name,omitempty" bson:"-"`
 	FamilyPicture string             `json:"family_picture,omitempty" bson:"-"`
 	Status        string             `json:"status" bson:"status"` // Yes, No, Maybe
-	Count         int                `json:"count" bson:"count"`   // Total count or Adult count? Let's assume Adults + Kids or just Adults. User said "ask for number of people... and any kids". Let's use Count for Adults/Total and KidsCount for kids.
+	Count         int                `json:"count" bson:"count"`   // Total count or Adult count
 	KidsCount     int                `json:"kids_count" bson:"kids_count"`
 }
 
@@ -56,6 +57,7 @@ type Dish struct {
 	EventID     primitive.ObjectID  `json:"event_id" bson:"event_id"`
 	Name        string              `json:"name" bson:"name"`
 	Description string              `json:"description" bson:"description"`
+	DietaryTags []string            `json:"dietary_tags" bson:"dietary_tags"`       // e.g., ["Vegan", "Gluten-Free"]
 	BringerID   *primitive.ObjectID `json:"bringer_id" bson:"bringer_id,omitempty"` // Nullable
 	BringerName string              `json:"bringer_name,omitempty" bson:"-"`
 	IsHostDish  bool                `json:"is_host_dish" bson:"is_host_dish"`
@@ -73,4 +75,13 @@ type SwapRequest struct {
 	TargetFamilyName     string              `json:"target_family_name,omitempty" bson:"-"`
 	Status               string              `json:"status" bson:"status"` // Pending, Approved, Rejected
 	CreatedAt            time.Time           `json:"created_at" bson:"created_at"`
+}
+
+type ChatMessage struct {
+	ID         primitive.ObjectID `json:"id" bson:"_id,omitempty"`
+	EventID    primitive.ObjectID `json:"event_id" bson:"event_id"`
+	FamilyID   primitive.ObjectID `json:"family_id" bson:"family_id"`
+	FamilyName string             `json:"family_name" bson:"family_name"`
+	Content    string             `json:"content" bson:"content"`
+	CreatedAt  time.Time          `json:"created_at" bson:"created_at"`
 }

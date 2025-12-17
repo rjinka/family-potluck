@@ -13,6 +13,8 @@ import { useUI } from '../context/UIContext';
 import EventStatsModal from '../components/EventStatsModal';
 import EventRSVPModal from '../components/EventRSVPModal';
 
+const DIETARY_TAGS = ["Vegan", "Vegetarian", "Gluten-Free", "Dairy-Free", "Nut-Free", "Spicy", "Halal", "Kosher"];
+
 const EventDetails = () => {
     const { eventId } = useParams();
     const { user } = useAuth();
@@ -32,7 +34,8 @@ const EventDetails = () => {
     const [showStatsModal, setShowStatsModal] = useState(false);
     const [showRSVPListModal, setShowRSVPListModal] = useState(false);
     const [rsvpStatus, setRsvpStatus] = useState(null);
-    const [newDish, setNewDish] = useState({ name: '', description: '', isRequest: false });
+    const [newDish, setNewDish] = useState({ name: '', description: '', isRequest: false, dietary_tags: [] });
+    const [customTag, setCustomTag] = useState('');
     const [copiedGuestLink, setCopiedGuestLink] = useState(false);
     const [eventStats, setEventStats] = useState(null);
     const [rsvpData, setRsvpData] = useState({ count: 1, kidsCount: 0 });
@@ -427,11 +430,12 @@ const EventDetails = () => {
                 event_id: eventId,
                 name: newDish.name,
                 description: newDish.description,
+                dietary_tags: newDish.dietary_tags,
                 bringer_id: isRequest ? null : user.id,
                 is_host_dish: false,
                 is_requested: isRequest
             });
-            setNewDish({ name: '', description: '', isRequest: false });
+            setNewDish({ name: '', description: '', isRequest: false, dietary_tags: [] });
             fetchDishes();
             showToast("Dish added successfully!", "success");
         } catch (error) {
@@ -703,6 +707,15 @@ const EventDetails = () => {
                                         <div>
                                             <h4 className="font-medium text-gray-800">{dish.name}</h4>
                                             {dish.description && <p className="text-sm text-gray-500">{dish.description}</p>}
+                                            {dish.dietary_tags && dish.dietary_tags.length > 0 && (
+                                                <div className="flex flex-wrap gap-1 mt-1">
+                                                    {dish.dietary_tags.map(tag => (
+                                                        <span key={tag} className="px-2 py-0.5 bg-green-50 text-green-700 text-[10px] rounded-full border border-green-100">
+                                                            {tag}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <button
@@ -738,6 +751,15 @@ const EventDetails = () => {
                                         <div>
                                             <h4 className="font-medium text-gray-800">{dish.name}</h4>
                                             {dish.description && <p className="text-sm text-gray-500">{dish.description}</p>}
+                                            {dish.dietary_tags && dish.dietary_tags.length > 0 && (
+                                                <div className="flex flex-wrap gap-1 mt-1">
+                                                    {dish.dietary_tags.map(tag => (
+                                                        <span key={tag} className="px-2 py-0.5 bg-green-50 text-green-700 text-[10px] rounded-full border border-green-100">
+                                                            {tag}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
                                         <div className="text-right flex flex-col items-end">
                                             <span className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Brought by</span>
@@ -809,6 +831,88 @@ const EventDetails = () => {
                                     rows="2"
                                     value={newDish.description}
                                     onChange={e => setNewDish({ ...newDish, description: e.target.value })} />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Dietary Tags</label>
+                                <div className="flex flex-wrap gap-2">
+                                    {/* Predefined Tags */}
+                                    {DIETARY_TAGS.map(tag => (
+                                        <button
+                                            key={tag}
+                                            type="button"
+                                            onClick={() => {
+                                                const currentTags = newDish.dietary_tags || [];
+                                                const newTags = currentTags.includes(tag)
+                                                    ? currentTags.filter(t => t !== tag)
+                                                    : [...currentTags, tag];
+                                                setNewDish({ ...newDish, dietary_tags: newTags });
+                                            }}
+                                            className={`px-3 py-1 rounded-full text-xs font-medium border transition ${(newDish.dietary_tags || []).includes(tag)
+                                                ? 'bg-green-100 text-green-700 border-green-200'
+                                                : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+                                                }`}
+                                        >
+                                            {tag}
+                                        </button>
+                                    ))}
+
+                                    {/* Custom Tags Display */}
+                                    {(newDish.dietary_tags || []).filter(tag => !DIETARY_TAGS.includes(tag)).map(tag => (
+                                        <button
+                                            key={tag}
+                                            type="button"
+                                            onClick={() => {
+                                                const newTags = newDish.dietary_tags.filter(t => t !== tag);
+                                                setNewDish({ ...newDish, dietary_tags: newTags });
+                                            }}
+                                            className="px-3 py-1 rounded-full text-xs font-medium border bg-green-100 text-green-700 border-green-200 flex items-center gap-1"
+                                        >
+                                            {tag}
+                                            <XCircle className="w-3 h-3" />
+                                        </button>
+                                    ))}
+
+                                    {/* Add Custom Tag Input */}
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="text"
+                                            placeholder="Add custom tag..."
+                                            className="px-3 py-1 text-xs border border-gray-200 rounded-full focus:ring-2 focus:ring-orange-500 outline-none w-32"
+                                            value={customTag}
+                                            onChange={e => setCustomTag(e.target.value)}
+                                            onKeyDown={e => {
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault();
+                                                    if (customTag.trim()) {
+                                                        const tag = customTag.trim();
+                                                        const currentTags = newDish.dietary_tags || [];
+                                                        if (!currentTags.includes(tag)) {
+                                                            setNewDish({ ...newDish, dietary_tags: [...currentTags, tag] });
+                                                        }
+                                                        setCustomTag('');
+                                                    }
+                                                }
+                                            }}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                if (customTag.trim()) {
+                                                    const tag = customTag.trim();
+                                                    const currentTags = newDish.dietary_tags || [];
+                                                    if (!currentTags.includes(tag)) {
+                                                        setNewDish({ ...newDish, dietary_tags: [...currentTags, tag] });
+                                                    }
+                                                    setCustomTag('');
+                                                }
+                                            }}
+                                            className="p-1 text-orange-600 hover:bg-orange-50 rounded-full"
+                                        >
+                                            <Plus className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
 
                             {isAdmin && (
