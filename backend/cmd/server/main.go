@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -84,12 +85,32 @@ func main() {
 }
 
 func enableCORS(next http.Handler) http.Handler {
+	allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
+	origins := strings.Split(allowedOrigins, ",")
+	for i, o := range origins {
+		origins[i] = strings.TrimSpace(o)
+	}
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Set specific origin for credentials to work
 		origin := r.Header.Get("Origin")
-		if origin != "" {
-			w.Header().Set("Access-Control-Allow-Origin", origin)
+		isAllowed := false
+		if allowedOrigins == "*" {
+			isAllowed = true
+		} else {
+			for _, o := range origins {
+				if o == origin {
+					isAllowed = true
+					break
+				}
+			}
 		}
+
+		if isAllowed && origin != "" {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+		} else if allowedOrigins == "*" {
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+		}
+
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
