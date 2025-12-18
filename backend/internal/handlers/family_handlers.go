@@ -3,7 +3,6 @@ package handlers
 import (
 	"context"
 	"encoding/json"
-	"family-potluck/backend/internal/models"
 	"net/http"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -23,9 +22,7 @@ func (s *Server) GetFamily(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	collection := s.DB.GetCollection("families")
-	var family models.Family
-	err = collection.FindOne(context.Background(), bson.M{"_id": id}).Decode(&family)
+	family, err := s.DB.GetFamilyByID(context.Background(), id)
 	if err != nil {
 		http.Error(w, "Family not found", http.StatusNotFound)
 		return
@@ -72,8 +69,7 @@ func (s *Server) UpdateFamily(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	collection := s.DB.GetCollection("families")
-	_, err = collection.UpdateOne(context.Background(), bson.M{"_id": id}, bson.M{"$set": update})
+	err = s.DB.UpdateFamily(context.Background(), id, bson.M{"$set": update})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

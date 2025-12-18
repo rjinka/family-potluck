@@ -29,8 +29,7 @@ func (s *Server) CreateEvent(w http.ResponseWriter, r *http.Request) {
 		event.RecurrenceID = primitive.NewObjectID()
 	}
 
-	collection := s.DB.GetCollection("events")
-	_, err := collection.InsertOne(context.Background(), event)
+	err := s.DB.CreateEvent(context.Background(), &event)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -47,56 +46,45 @@ func (s *Server) CreateEvent(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(event)
 }
+
 func (s *Server) FinishEvent(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("FinishEvent: Handler called")
 	idStr := r.PathValue("id")
 	id, err := primitive.ObjectIDFromHex(idStr)
 	if err != nil {
-		fmt.Printf("FinishEvent: Invalid event id: %s\n", idStr)
 		http.Error(w, "Invalid event id", http.StatusBadRequest)
 		return
 	}
 
 	adminIDStr := r.URL.Query().Get("admin_id")
 	if adminIDStr == "" {
-		fmt.Println("FinishEvent: Missing admin_id")
 		http.Error(w, "Missing admin_id", http.StatusBadRequest)
 		return
 	}
 	adminID, err := primitive.ObjectIDFromHex(adminIDStr)
 	if err != nil {
-		fmt.Printf("FinishEvent: Invalid admin_id: %s\n", adminIDStr)
 		http.Error(w, "Invalid admin_id", http.StatusBadRequest)
 		return
 	}
 
-	collection := s.DB.GetCollection("events")
-	var event models.Event
-	err = collection.FindOne(context.Background(), bson.M{"_id": id}).Decode(&event)
+	event, err := s.DB.GetEvent(context.Background(), id)
 	if err != nil {
 		http.Error(w, "Event not found", http.StatusNotFound)
 		return
 	}
+
 	// Verify admin of the group
-	groupsCollection := s.DB.GetCollection("groups")
-	var group models.Group
-	err = groupsCollection.FindOne(context.Background(), bson.M{"_id": event.GroupID}).Decode(&group)
+	group, err := s.DB.GetGroup(context.Background(), event.GroupID)
 	if err != nil {
-		fmt.Println("FinishEvent: Group not found")
 		http.Error(w, "Group not found", http.StatusInternalServerError)
 		return
 	}
 
-	fmt.Printf("FinishEvent: UserID=%s, GroupAdminID=%s, EventHostID=%s\n", adminID.Hex(), group.AdminID.Hex(), event.HostID.Hex())
-
 	if group.AdminID != adminID && event.HostID != adminID {
-		fmt.Println("FinishEvent: Unauthorized")
 		http.Error(w, "Unauthorized", http.StatusForbidden)
 		return
 	}
 
 	if event.Recurrence == "" {
-		fmt.Println("FinishEvent: Event is not recurring")
 		http.Error(w, "Event is not recurring", http.StatusBadRequest)
 		return
 	}
@@ -110,70 +98,45 @@ func (s *Server) FinishEvent(w http.ResponseWriter, r *http.Request) {
 		daysToAdd = 14
 	}
 
-	newEvent := event
+	newEvent := *event
 	newEvent.ID = primitive.NewObjectID()
 	newEvent.Date = event.Date.AddDate(0, 0, daysToAdd)
 	newEvent.GuestIDs = []primitive.ObjectID{}  // Clear guest list
 	newEvent.GuestJoinCode = generateJoinCode() // Generate new join code
 
 	// Rotate Host
-	fmt.Println("FinishEvent: Rotating host...")
-	// 1. Fetch all group members
-	familiesCollection := s.DB.GetCollection("families")
-	cursor, err := familiesCollection.Find(context.Background(), bson.M{"group_ids": event.GroupID})
-	if err == nil {
-		var members []models.Family
-		if err = cursor.All(context.Background(), &members); err == nil && len(members) > 0 {
-			fmt.Printf("FinishEvent: Found %d members\n", len(members))
-			// 2. Sort members by ID for deterministic rotation
-			sort.Slice(members, func(i, j int) bool {
-				return members[i].ID.Hex() < members[j].ID.Hex()
-			})
+	members, err := s.DB.GetFamiliesByGroupID(context.Background(), event.GroupID)
+	if err == nil && len(members) > 0 {
+		sort.Slice(members, func(i, j int) bool {
+			return members[i].ID.Hex() < members[j].ID.Hex()
+		})
 
-			// 3. Find current host index
-			currentIndex := -1
-			for i, m := range members {
-				if m.ID == event.HostID {
-					currentIndex = i
-					break
-				}
+		currentIndex := -1
+		for i, m := range members {
+			if m.ID == event.HostID {
+				currentIndex = i
+				break
 			}
-			fmt.Printf("FinishEvent: Current host index: %d\n", currentIndex)
-
-			// 4. Select next host
-			if currentIndex != -1 {
-				nextIndex := (currentIndex + 1) % len(members)
-				// Ensure not same host if possible (only if > 1 member)
-				if len(members) > 1 && members[nextIndex].ID == event.HostID {
-					// This shouldn't happen with simple modulo unless len=1, but just in case logic changes
-					nextIndex = (nextIndex + 1) % len(members)
-				}
-				newEvent.HostID = members[nextIndex].ID
-				fmt.Printf("FinishEvent: New host ID: %s\n", newEvent.HostID.Hex())
-			} else {
-				// Current host not found (maybe left group?), just pick first member
-				newEvent.HostID = members[0].ID
-				fmt.Printf("FinishEvent: Current host not found, defaulting to: %s\n", newEvent.HostID.Hex())
-			}
-		} else {
-			fmt.Println("FinishEvent: No members found or error decoding")
 		}
-	} else {
-		fmt.Printf("FinishEvent: Error finding members: %v\n", err)
+
+		if currentIndex != -1 {
+			nextIndex := (currentIndex + 1) % len(members)
+			newEvent.HostID = members[nextIndex].ID
+		} else {
+			newEvent.HostID = members[0].ID
+		}
 	}
 
-	_, err = collection.InsertOne(context.Background(), newEvent)
+	err = s.DB.CreateEvent(context.Background(), &newEvent)
 	if err != nil {
-		fmt.Printf("FinishEvent: Failed to insert new event: %v\n", err)
 		http.Error(w, "Failed to create next event", http.StatusInternalServerError)
 		return
 	}
-	fmt.Println("FinishEvent: Successfully created next event")
 
-	// Mark the old event as completed instead of deleting
-	_, err = collection.UpdateOne(
+	// Mark the old event as completed
+	err = s.DB.UpdateEvent(
 		context.Background(),
-		bson.M{"_id": id},
+		id,
 		bson.M{"$set": bson.M{"status": "completed"}},
 	)
 	if err != nil {
@@ -188,7 +151,7 @@ func (s *Server) FinishEvent(w http.ResponseWriter, r *http.Request) {
 	msgBytesNew, _ := json.Marshal(msgNew)
 	s.Hub.Broadcast(msgBytesNew)
 
-	// Broadcast deletion for old event (so it's removed from dashboard)
+	// Broadcast deletion for old event
 	msgDelete := map[string]interface{}{
 		"type": "event_deleted",
 		"data": map[string]interface{}{
@@ -222,18 +185,14 @@ func (s *Server) SkipEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	collection := s.DB.GetCollection("events")
-	var event models.Event
-	err = collection.FindOne(context.Background(), bson.M{"_id": id}).Decode(&event)
+	event, err := s.DB.GetEvent(context.Background(), id)
 	if err != nil {
 		http.Error(w, "Event not found", http.StatusNotFound)
 		return
 	}
 
 	// Verify admin
-	groupsCollection := s.DB.GetCollection("groups")
-	var group models.Group
-	err = groupsCollection.FindOne(context.Background(), bson.M{"_id": event.GroupID}).Decode(&group)
+	group, err := s.DB.GetGroup(context.Background(), event.GroupID)
 	if err != nil {
 		http.Error(w, "Group not found", http.StatusInternalServerError)
 		return
@@ -258,9 +217,9 @@ func (s *Server) SkipEvent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	newDate := event.Date.AddDate(0, 0, daysToAdd)
-	_, err = collection.UpdateOne(
+	err = s.DB.UpdateEvent(
 		context.Background(),
-		bson.M{"_id": id},
+		id,
 		bson.M{"$set": bson.M{"date": newDate}},
 	)
 	if err != nil {
@@ -293,20 +252,8 @@ func (s *Server) GetEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	collection := s.DB.GetCollection("events")
-	filter := bson.M{
-		"group_id": groupID,
-		"status":   bson.M{"$ne": "completed"},
-	}
-	cursor, err := collection.Find(context.Background(), filter)
+	events, err := s.DB.GetEventsByGroupID(context.Background(), groupID, false)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defer cursor.Close(context.Background())
-
-	var events []models.Event
-	if err = cursor.All(context.Background(), &events); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -327,23 +274,8 @@ func (s *Server) GetUserEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	collection := s.DB.GetCollection("events")
-
-	// Find events where user is a guest
-	filter := bson.M{
-		"guest_ids": userID,
-		"date":      bson.M{"$gte": time.Now().AddDate(0, 0, -1)}, // Only show future or recent events
-	}
-
-	cursor, err := collection.Find(context.Background(), filter)
+	events, err := s.DB.GetEventsByUserID(context.Background(), userID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defer cursor.Close(context.Background())
-
-	var events []models.Event
-	if err = cursor.All(context.Background(), &events); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -362,9 +294,7 @@ func (s *Server) JoinEventByCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	collection := s.DB.GetCollection("events")
-	var event models.Event
-	err := collection.FindOne(context.Background(), bson.M{"guest_join_code": req.JoinCode}).Decode(&event)
+	event, err := s.DB.GetEventByCode(context.Background(), req.JoinCode)
 	if err != nil {
 		http.Error(w, "Invalid join code", http.StatusNotFound)
 		return
@@ -385,9 +315,9 @@ func (s *Server) JoinEventByCode(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	_, err = collection.UpdateOne(
+	err = s.DB.UpdateEvent(
 		context.Background(),
-		bson.M{"_id": event.ID},
+		event.ID,
 		bson.M{"$push": bson.M{"guest_ids": req.FamilyID}},
 	)
 	if err != nil {
@@ -401,9 +331,7 @@ func (s *Server) JoinEventByCode(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) GetEventByCode(w http.ResponseWriter, r *http.Request) {
 	code := r.PathValue("code")
-	collection := s.DB.GetCollection("events")
-	var event models.Event
-	err := collection.FindOne(context.Background(), bson.M{"guest_join_code": code}).Decode(&event)
+	event, err := s.DB.GetEventByCode(context.Background(), code)
 	if err != nil {
 		http.Error(w, "Event not found", http.StatusNotFound)
 		return
@@ -416,9 +344,7 @@ func (s *Server) GetEventByCode(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch Host Name
-	familiesCollection := s.DB.GetCollection("families")
-	var host models.Family
-	err = familiesCollection.FindOne(context.Background(), bson.M{"_id": event.HostID}).Decode(&host)
+	host, err := s.DB.GetFamilyByID(context.Background(), event.HostID)
 	if err == nil {
 		event.HostName = host.Name
 	}
@@ -434,18 +360,14 @@ func (s *Server) GetEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	collection := s.DB.GetCollection("events")
-	var event models.Event
-	err = collection.FindOne(context.Background(), bson.M{"_id": id}).Decode(&event)
+	event, err := s.DB.GetEvent(context.Background(), id)
 	if err != nil {
 		http.Error(w, "Event not found", http.StatusNotFound)
 		return
 	}
 
 	// Fetch Host Name
-	familiesCollection := s.DB.GetCollection("families")
-	var host models.Family
-	err = familiesCollection.FindOne(context.Background(), bson.M{"_id": event.HostID}).Decode(&host)
+	host, err := s.DB.GetFamilyByID(context.Background(), event.HostID)
 	if err == nil {
 		event.HostName = host.Name
 	}
@@ -472,26 +394,20 @@ func (s *Server) DeleteEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	collection := s.DB.GetCollection("events")
-	var event models.Event
-	err = collection.FindOne(context.Background(), bson.M{"_id": id}).Decode(&event)
+	event, err := s.DB.GetEvent(context.Background(), id)
 	if err != nil {
 		http.Error(w, "Event not found", http.StatusNotFound)
 		return
 	}
 
 	// Fetch group to check admin
-	groupsCollection := s.DB.GetCollection("groups")
-	var group models.Group
-	err = groupsCollection.FindOne(context.Background(), bson.M{"_id": event.GroupID}).Decode(&group)
+	group, err := s.DB.GetGroup(context.Background(), event.GroupID)
 	if err != nil {
 		http.Error(w, "Group not found", http.StatusInternalServerError)
 		return
 	}
 
 	// Check authorization
-	// Group Admin can delete any event
-	// Event Host can only delete non-recurring events
 	isAuthorized := false
 	if group.AdminID == userID {
 		isAuthorized = true
@@ -506,7 +422,7 @@ func (s *Server) DeleteEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = collection.DeleteOne(context.Background(), bson.M{"_id": id})
+	err = s.DB.DeleteEvent(context.Background(), id)
 	if err != nil {
 		http.Error(w, "Failed to delete event", http.StatusInternalServerError)
 		return
@@ -534,16 +450,13 @@ func (s *Server) GetEventStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	collection := s.DB.GetCollection("events")
-	var event models.Event
-	err = collection.FindOne(context.Background(), bson.M{"_id": id}).Decode(&event)
+	event, err := s.DB.GetEvent(context.Background(), id)
 	if err != nil {
 		http.Error(w, "Event not found", http.StatusNotFound)
 		return
 	}
 
 	if event.RecurrenceID.IsZero() {
-		// Not part of a recurrence series or legacy event
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"total_occurrences": 0,
 			"host_counts":       []interface{}{},
@@ -551,20 +464,8 @@ func (s *Server) GetEventStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Find all completed events in this series
-	filter := bson.M{
-		"recurrence_id": event.RecurrenceID,
-		"status":        "completed",
-	}
-	cursor, err := collection.Find(context.Background(), filter)
+	completedEvents, err := s.DB.GetCompletedEventsByRecurrenceID(context.Background(), event.RecurrenceID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defer cursor.Close(context.Background())
-
-	var completedEvents []models.Event
-	if err = cursor.All(context.Background(), &completedEvents); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -576,7 +477,6 @@ func (s *Server) GetEventStats(w http.ResponseWriter, r *http.Request) {
 		hostCounts[e.HostID.Hex()]++
 	}
 
-	// Format for response
 	type HostStat struct {
 		FamilyID   string `json:"family_id"`
 		FamilyName string `json:"family_name"`
@@ -584,11 +484,9 @@ func (s *Server) GetEventStats(w http.ResponseWriter, r *http.Request) {
 	}
 	var stats []HostStat
 
-	familiesCollection := s.DB.GetCollection("families")
 	for hostID, count := range hostCounts {
 		hID, _ := primitive.ObjectIDFromHex(hostID)
-		var family models.Family
-		err := familiesCollection.FindOne(context.Background(), bson.M{"_id": hID}).Decode(&family)
+		family, err := s.DB.GetFamilyByID(context.Background(), hID)
 		name := "Unknown"
 		if err == nil {
 			name = family.Name
@@ -600,7 +498,6 @@ func (s *Server) GetEventStats(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	// Sort stats by count descending
 	sort.Slice(stats, func(i, j int) bool {
 		return stats[i].Count > stats[j].Count
 	})

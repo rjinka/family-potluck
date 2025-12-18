@@ -18,8 +18,7 @@ func (s *Server) AddDish(w http.ResponseWriter, r *http.Request) {
 	}
 
 	dish.ID = primitive.NewObjectID()
-	collection := s.DB.GetCollection("dishes")
-	_, err := collection.InsertOne(context.Background(), dish)
+	err := s.DB.CreateDish(context.Background(), &dish)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -50,16 +49,8 @@ func (s *Server) GetDishes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	collection := s.DB.GetCollection("dishes")
-	cursor, err := collection.Find(context.Background(), bson.M{"event_id": eventID})
+	dishes, err := s.DB.GetDishesByEventID(context.Background(), eventID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defer cursor.Close(context.Background())
-
-	var dishes []models.Dish
-	if err = cursor.All(context.Background(), &dishes); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -75,16 +66,10 @@ func (s *Server) GetDishes(w http.ResponseWriter, r *http.Request) {
 	// Fetch families if there are any bringers
 	bringerNames := make(map[primitive.ObjectID]string)
 	if len(bringerIDs) > 0 {
-		familiesCollection := s.DB.GetCollection("families")
-		filter := bson.M{"_id": bson.M{"$in": bringerIDs}}
-		cursor, err := familiesCollection.Find(context.Background(), filter)
+		families, err := s.DB.GetFamiliesByIDs(context.Background(), bringerIDs)
 		if err == nil {
-			defer cursor.Close(context.Background())
-			var families []models.Family
-			if err = cursor.All(context.Background(), &families); err == nil {
-				for _, family := range families {
-					bringerNames[family.ID] = family.Name
-				}
+			for _, family := range families {
+				bringerNames[family.ID] = family.Name
 			}
 		}
 	}
@@ -117,19 +102,16 @@ func (s *Server) PledgeDish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	collection := s.DB.GetCollection("dishes")
-
 	// Fetch dish to get event_id
-	var dish models.Dish
-	err = collection.FindOne(context.Background(), bson.M{"_id": id}).Decode(&dish)
+	dish, err := s.DB.GetDishByID(context.Background(), id)
 	if err != nil {
 		http.Error(w, "Dish not found", http.StatusNotFound)
 		return
 	}
 
-	_, err = collection.UpdateOne(
+	err = s.DB.UpdateDish(
 		context.Background(),
-		bson.M{"_id": id},
+		id,
 		bson.M{"$set": bson.M{"bringer_id": req.FamilyID}},
 	)
 	if err != nil {
@@ -138,9 +120,7 @@ func (s *Server) PledgeDish(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch Family Name for broadcast
-	familiesCollection := s.DB.GetCollection("families")
-	var family models.Family
-	err = familiesCollection.FindOne(context.Background(), bson.M{"_id": req.FamilyID}).Decode(&family)
+	family, err := s.DB.GetFamilyByID(context.Background(), req.FamilyID)
 	familyName := "Someone"
 	if err == nil {
 		familyName = family.Name
@@ -171,19 +151,16 @@ func (s *Server) UnpledgeDish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	collection := s.DB.GetCollection("dishes")
-
 	// Fetch dish to get event_id
-	var dish models.Dish
-	err = collection.FindOne(context.Background(), bson.M{"_id": id}).Decode(&dish)
+	dish, err := s.DB.GetDishByID(context.Background(), id)
 	if err != nil {
 		http.Error(w, "Dish not found", http.StatusNotFound)
 		return
 	}
 
-	_, err = collection.UpdateOne(
+	err = s.DB.UpdateDish(
 		context.Background(),
-		bson.M{"_id": id},
+		id,
 		bson.M{"$unset": bson.M{"bringer_id": ""}},
 	)
 	if err != nil {
@@ -214,17 +191,14 @@ func (s *Server) DeleteDish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	collection := s.DB.GetCollection("dishes")
-
 	// Fetch dish to get event_id
-	var dish models.Dish
-	err = collection.FindOne(context.Background(), bson.M{"_id": id}).Decode(&dish)
+	dish, err := s.DB.GetDishByID(context.Background(), id)
 	if err != nil {
 		http.Error(w, "Dish not found", http.StatusNotFound)
 		return
 	}
 
-	_, err = collection.DeleteOne(context.Background(), bson.M{"_id": id})
+	err = s.DB.DeleteDish(context.Background(), id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

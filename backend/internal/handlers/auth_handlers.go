@@ -12,7 +12,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
-	"google.golang.org/api/idtoken"
 )
 
 var jwtKey = []byte(os.Getenv("JWT_SECRET"))
@@ -63,7 +62,7 @@ func (s *Server) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 
 	ctx := context.Background()
 	// Ideally, validate the audience (your Client ID)
-	payload, err := idtoken.Validate(ctx, req.IDToken, os.Getenv("GOOGLE_CLIENT_ID"))
+	payload, err := s.TokenValidator.Validate(ctx, req.IDToken, os.Getenv("GOOGLE_CLIENT_ID"))
 	if err != nil {
 		http.Error(w, "Invalid token: "+err.Error(), http.StatusUnauthorized)
 		return
@@ -74,24 +73,23 @@ func (s *Server) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 	picture := payload.Claims["picture"].(string)
 	sub := payload.Subject // Google ID
 
-	collection := s.DB.GetCollection("families")
-	var family models.Family
-	err = collection.FindOne(ctx, bson.M{"email": email}).Decode(&family)
+	family, err := s.DB.GetFamilyByEmail(ctx, email)
 
 	if err == mongo.ErrNoDocuments {
 		// Create new user
-		family = models.Family{
+		newFamily := models.Family{
 			ID:       primitive.NewObjectID(),
 			Name:     name,
 			Email:    email,
 			GoogleID: sub,
 			Picture:  picture,
 		}
-		_, err = collection.InsertOne(ctx, family)
+		err = s.DB.CreateFamily(ctx, &newFamily)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		family = &newFamily
 		w.WriteHeader(http.StatusCreated)
 	} else if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -105,7 +103,7 @@ func (s *Server) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 				"google_id": sub,
 			},
 		}
-		_, err = collection.UpdateOne(ctx, bson.M{"_id": family.ID}, update)
+		err = s.DB.UpdateFamily(ctx, family.ID, update)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -165,9 +163,7 @@ func (s *Server) GetMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	collection := s.DB.GetCollection("families")
-	var family models.Family
-	err = collection.FindOne(context.Background(), bson.M{"_id": userID}).Decode(&family)
+	family, err := s.DB.GetFamilyByID(context.Background(), userID)
 	if err != nil {
 		http.Error(w, "User not found", http.StatusUnauthorized)
 		return

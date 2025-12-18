@@ -19,8 +19,7 @@ func (s *Server) CreateGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if group name already exists
-	collection := s.DB.GetCollection("groups")
-	count, err := collection.CountDocuments(context.Background(), bson.M{"name": group.Name})
+	count, err := s.DB.CountGroupsByName(context.Background(), group.Name)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -32,17 +31,16 @@ func (s *Server) CreateGroup(w http.ResponseWriter, r *http.Request) {
 
 	group.ID = primitive.NewObjectID()
 	group.JoinCode = generateJoinCode()
-	_, err = collection.InsertOne(context.Background(), group)
+	err = s.DB.CreateGroup(context.Background(), &group)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	// Update admin's family to join this group
-	familiesCollection := s.DB.GetCollection("families")
-	_, err = familiesCollection.UpdateOne(
+	err = s.DB.UpdateFamily(
 		context.Background(),
-		bson.M{"_id": group.AdminID},
+		group.AdminID,
 		bson.M{"$push": bson.M{"group_ids": group.ID}},
 	)
 	if err != nil {
@@ -66,10 +64,9 @@ func (s *Server) JoinGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	familiesCollection := s.DB.GetCollection("families")
-	_, err := familiesCollection.UpdateOne(
+	err := s.DB.UpdateFamily(
 		context.Background(),
-		bson.M{"_id": req.FamilyID},
+		req.FamilyID,
 		bson.M{"$addToSet": bson.M{"group_ids": req.GroupID}},
 	)
 	if err != nil {
@@ -91,9 +88,7 @@ func (s *Server) LeaveGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Prevent admin from leaving (they must delete the group)
-	groupsCollection := s.DB.GetCollection("groups")
-	var group models.Group
-	err := groupsCollection.FindOne(context.Background(), bson.M{"_id": req.GroupID}).Decode(&group)
+	group, err := s.DB.GetGroup(context.Background(), req.GroupID)
 	if err != nil {
 		http.Error(w, "Group not found", http.StatusNotFound)
 		return
@@ -104,10 +99,9 @@ func (s *Server) LeaveGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	familiesCollection := s.DB.GetCollection("families")
-	_, err = familiesCollection.UpdateOne(
+	err = s.DB.UpdateFamily(
 		context.Background(),
-		bson.M{"_id": req.FamilyID},
+		req.FamilyID,
 		bson.M{"$pull": bson.M{"group_ids": req.GroupID}},
 	)
 	if err != nil {
@@ -129,18 +123,15 @@ func (s *Server) JoinGroupByCode(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Find group by join code
-	collection := s.DB.GetCollection("groups")
-	var group models.Group
-	err := collection.FindOne(context.Background(), bson.M{"join_code": req.JoinCode}).Decode(&group)
+	group, err := s.DB.GetGroupByCode(context.Background(), req.JoinCode)
 	if err != nil {
 		http.Error(w, "Invalid join code", http.StatusNotFound)
 		return
 	}
 
-	familiesCollection := s.DB.GetCollection("families")
-	_, err = familiesCollection.UpdateOne(
+	err = s.DB.UpdateFamily(
 		context.Background(),
-		bson.M{"_id": req.FamilyID},
+		req.FamilyID,
 		bson.M{"$addToSet": bson.M{"group_ids": group.ID}},
 	)
 	if err != nil {
@@ -159,9 +150,7 @@ func (s *Server) GetGroupByCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	collection := s.DB.GetCollection("groups")
-	var group models.Group
-	err := collection.FindOne(context.Background(), bson.M{"join_code": code}).Decode(&group)
+	group, err := s.DB.GetGroupByCode(context.Background(), code)
 	if err != nil {
 		http.Error(w, "Group not found", http.StatusNotFound)
 		return
@@ -171,16 +160,8 @@ func (s *Server) GetGroupByCode(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) GetGroups(w http.ResponseWriter, r *http.Request) {
-	collection := s.DB.GetCollection("groups")
-	cursor, err := collection.Find(context.Background(), bson.M{})
+	groups, err := s.DB.GetGroups(context.Background())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defer cursor.Close(context.Background())
-
-	var groups []models.Group
-	if err = cursor.All(context.Background(), &groups); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -196,9 +177,7 @@ func (s *Server) GetGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	collection := s.DB.GetCollection("groups")
-	var group models.Group
-	err = collection.FindOne(context.Background(), bson.M{"_id": id}).Decode(&group)
+	group, err := s.DB.GetGroup(context.Background(), id)
 	if err != nil {
 		http.Error(w, "Group not found", http.StatusNotFound)
 		return
@@ -227,9 +206,7 @@ func (s *Server) DeleteGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Verify group exists and user is admin
-	groupsCollection := s.DB.GetCollection("groups")
-	var group models.Group
-	err = groupsCollection.FindOne(context.Background(), bson.M{"_id": id}).Decode(&group)
+	group, err := s.DB.GetGroup(context.Background(), id)
 	if err != nil {
 		http.Error(w, "Group not found", http.StatusNotFound)
 		return
@@ -241,19 +218,14 @@ func (s *Server) DeleteGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete group
-	_, err = groupsCollection.DeleteOne(context.Background(), bson.M{"_id": id})
+	err = s.DB.DeleteGroup(context.Background(), id)
 	if err != nil {
 		http.Error(w, "Failed to delete group", http.StatusInternalServerError)
 		return
 	}
 
 	// Remove group_id from all families
-	familiesCollection := s.DB.GetCollection("families")
-	_, err = familiesCollection.UpdateMany(
-		context.Background(),
-		bson.M{"group_ids": id},
-		bson.M{"$pull": bson.M{"group_ids": id}},
-	)
+	err = s.DB.RemoveGroupIDFromAllFamilies(context.Background(), id)
 	if err != nil {
 		// Log error but success for group deletion
 		fmt.Printf("Failed to remove group from families: %v\n", err)
@@ -275,16 +247,8 @@ func (s *Server) GetGroupMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	collection := s.DB.GetCollection("families")
-	cursor, err := collection.Find(context.Background(), bson.M{"group_ids": groupID})
+	families, err := s.DB.GetFamiliesByGroupID(context.Background(), groupID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defer cursor.Close(context.Background())
-
-	var families []models.Family
-	if err = cursor.All(context.Background(), &families); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

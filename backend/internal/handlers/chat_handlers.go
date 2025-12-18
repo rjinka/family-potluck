@@ -7,9 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func (s *Server) SendChatMessage(w http.ResponseWriter, r *http.Request) {
@@ -21,18 +19,14 @@ func (s *Server) SendChatMessage(w http.ResponseWriter, r *http.Request) {
 
 	// Validation: Check if user is a group member (not just a guest)
 	// 1. Get Event to find GroupID
-	eventsCollection := s.DB.GetCollection("events")
-	var event models.Event
-	err := eventsCollection.FindOne(context.Background(), bson.M{"_id": msg.EventID}).Decode(&event)
+	event, err := s.DB.GetEvent(context.Background(), msg.EventID)
 	if err != nil {
 		http.Error(w, "Event not found", http.StatusNotFound)
 		return
 	}
 
 	// 2. Get Family to check Group Membership
-	familiesCollection := s.DB.GetCollection("families")
-	var family models.Family
-	err = familiesCollection.FindOne(context.Background(), bson.M{"_id": msg.FamilyID}).Decode(&family)
+	family, err := s.DB.GetFamilyByID(context.Background(), msg.FamilyID)
 	if err != nil {
 		http.Error(w, "Family not found", http.StatusNotFound)
 		return
@@ -57,8 +51,7 @@ func (s *Server) SendChatMessage(w http.ResponseWriter, r *http.Request) {
 	msg.FamilyName = family.Name // Ensure name is correct from DB
 
 	// Save to DB
-	chatCollection := s.DB.GetCollection("chat_messages")
-	_, err = chatCollection.InsertOne(context.Background(), msg)
+	err = s.DB.CreateChatMessage(context.Background(), &msg)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -89,20 +82,8 @@ func (s *Server) GetChatMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	collection := s.DB.GetCollection("chat_messages")
-
-	// Sort by CreatedAt ascending (oldest first)
-	opts := options.Find().SetSort(bson.M{"created_at": 1})
-
-	cursor, err := collection.Find(context.Background(), bson.M{"event_id": eventID}, opts)
+	messages, err := s.DB.GetChatMessagesByEventID(context.Background(), eventID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defer cursor.Close(context.Background())
-
-	var messages []models.ChatMessage
-	if err = cursor.All(context.Background(), &messages); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

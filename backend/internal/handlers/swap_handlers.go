@@ -23,8 +23,7 @@ func (s *Server) CreateSwapRequest(w http.ResponseWriter, r *http.Request) {
 	req.Status = "pending"
 	req.CreatedAt = time.Now()
 
-	collection := s.DB.GetCollection("swap_requests")
-	_, err := collection.InsertOne(context.Background(), req)
+	err := s.DB.CreateSwapRequest(context.Background(), &req)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -63,11 +62,8 @@ func (s *Server) UpdateSwapRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	collection := s.DB.GetCollection("swap_requests")
-
 	// Fetch request to get details for broadcast
-	var req models.SwapRequest
-	err = collection.FindOne(context.Background(), bson.M{"_id": id}).Decode(&req)
+	req, err := s.DB.GetSwapRequestByID(context.Background(), id)
 	if err != nil {
 		http.Error(w, "Swap request not found", http.StatusNotFound)
 		return
@@ -79,11 +75,7 @@ func (s *Server) UpdateSwapRequest(w http.ResponseWriter, r *http.Request) {
 		req.TargetFamilyID = update.TargetFamilyID // Update local object for broadcast
 	}
 
-	_, err = collection.UpdateOne(
-		context.Background(),
-		bson.M{"_id": id},
-		bson.M{"$set": updateFields},
-	)
+	err = s.DB.UpdateSwapRequest(context.Background(), id, bson.M{"$set": updateFields})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -96,9 +88,6 @@ func (s *Server) UpdateSwapRequest(w http.ResponseWriter, r *http.Request) {
 	if req.Status == "approved" {
 		if req.Type == "host" {
 			// Update Event Host
-			eventsCollection := s.DB.GetCollection("events")
-
-			// Let's check if we have a TargetID.
 			var newHostID primitive.ObjectID
 			if req.TargetFamilyID != nil {
 				newHostID = *req.TargetFamilyID
@@ -114,33 +103,26 @@ func (s *Server) UpdateSwapRequest(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 
-			_, err = eventsCollection.UpdateOne(
-				context.Background(),
-				bson.M{"_id": req.EventID},
-				bson.M{"$set": eventUpdateDoc},
-			)
+			err = s.DB.UpdateEvent(context.Background(), req.EventID, bson.M{"$set": eventUpdateDoc})
 			if err != nil {
 				fmt.Printf("Failed to update event host: %v\n", err)
 			} else {
 				// Broadcast event update
-				var updatedEvent models.Event
-				eventsCollection.FindOne(context.Background(), bson.M{"_id": req.EventID}).Decode(&updatedEvent)
-
-				eventMsg := map[string]interface{}{
-					"type": "event_updated",
-					"data": updatedEvent,
+				updatedEvent, err := s.DB.GetEvent(context.Background(), req.EventID)
+				if err == nil {
+					eventMsg := map[string]interface{}{
+						"type": "event_updated",
+						"data": updatedEvent,
+					}
+					eventMsgBytes, _ := json.Marshal(eventMsg)
+					s.Hub.Broadcast(eventMsgBytes)
 				}
-				eventMsgBytes, _ := json.Marshal(eventMsg)
-				s.Hub.Broadcast(eventMsgBytes)
 			}
 
 		} else {
 			// Default to dish swap
-			dishesCollection := s.DB.GetCollection("dishes")
-
 			// Fetch dish to check current bringer to determine direction (Request vs Offer)
-			var currentDish models.Dish
-			err = dishesCollection.FindOne(context.Background(), bson.M{"_id": req.DishID}).Decode(&currentDish)
+			currentDish, err := s.DB.GetDishByID(context.Background(), *req.DishID)
 
 			var newBringerID primitive.ObjectID
 			if err == nil && currentDish.BringerID != nil && *currentDish.BringerID == req.RequestingFamilyID {
@@ -148,21 +130,19 @@ func (s *Server) UpdateSwapRequest(w http.ResponseWriter, r *http.Request) {
 				if req.TargetFamilyID != nil {
 					newBringerID = *req.TargetFamilyID
 				} else {
-					// Fallback or error handling if needed, but TargetFamilyID should be set on acceptance
-					newBringerID = req.RequestingFamilyID // Revert to requester if no target? Or fail?
+					newBringerID = req.RequestingFamilyID
 				}
 			} else {
 				// Requester is NOT the current bringer -> It's a Request -> Requester becomes bringer
 				newBringerID = req.RequestingFamilyID
 			}
 
-			_, err = dishesCollection.UpdateOne(
+			err = s.DB.UpdateDish(
 				context.Background(),
-				bson.M{"_id": req.DishID},
+				*req.DishID,
 				bson.M{"$set": bson.M{"bringer_id": newBringerID}},
 			)
 			if err != nil {
-				// Log error but continue
 				fmt.Printf("Failed to update dish bringer: %v\n", err)
 			} else {
 				// Broadcast dish update
@@ -204,32 +184,21 @@ func (s *Server) GetSwapRequests(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	collection := s.DB.GetCollection("swap_requests")
-	cursor, err := collection.Find(context.Background(), bson.M{"event_id": eventID})
+	requests, err := s.DB.GetSwapRequestsByEventID(context.Background(), eventID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defer cursor.Close(context.Background())
-
-	var requests []models.SwapRequest
-	if err = cursor.All(context.Background(), &requests); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	// Populate family names
-	familiesCollection := s.DB.GetCollection("families")
 	for i := range requests {
-		var requestingFamily models.Family
-		err := familiesCollection.FindOne(context.Background(), bson.M{"_id": requests[i].RequestingFamilyID}).Decode(&requestingFamily)
+		requestingFamily, err := s.DB.GetFamilyByID(context.Background(), requests[i].RequestingFamilyID)
 		if err == nil {
 			requests[i].RequestingFamilyName = requestingFamily.Name
 		}
 
 		if requests[i].TargetFamilyID != nil {
-			var targetFamily models.Family
-			err := familiesCollection.FindOne(context.Background(), bson.M{"_id": requests[i].TargetFamilyID}).Decode(&targetFamily)
+			targetFamily, err := s.DB.GetFamilyByID(context.Background(), *requests[i].TargetFamilyID)
 			if err == nil {
 				requests[i].TargetFamilyName = targetFamily.Name
 			}
