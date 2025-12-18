@@ -9,6 +9,7 @@ import Dashboard from './pages/Dashboard';
 import JoinGroup from './pages/JoinGroup';
 import JoinEvent from './pages/JoinEvent';
 import EventDetails from './pages/EventDetails';
+import VersionFooter from './components/VersionFooter';
 import { Toaster } from 'sonner';
 
 const ProtectedRoute = ({ children }) => {
@@ -37,6 +38,7 @@ function App() {
             </Routes>
           </Router>
           <Toaster position="top-center" richColors />
+          <VersionFooter />
         </UIProvider>
       </WebSocketProvider>
     </AuthProvider>

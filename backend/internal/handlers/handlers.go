@@ -2,9 +2,12 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"family-potluck/backend/internal/database"
 	"family-potluck/backend/internal/websocket"
 	"net/http"
+	"os"
+	"strings"
 
 	"google.golang.org/api/idtoken"
 )
@@ -36,4 +39,16 @@ func NewServer(db database.Service, hub *websocket.Hub) *Server {
 func (s *Server) HealthHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("OK"))
+}
+
+func (s *Server) GetVersion(w http.ResponseWriter, r *http.Request) {
+	version, err := os.ReadFile("VERSION")
+	if err != nil {
+		http.Error(w, "Could not read version", http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]string{
+		"version": strings.TrimSpace(string(version)),
+	})
 }

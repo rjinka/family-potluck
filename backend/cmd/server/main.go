@@ -68,6 +68,7 @@ func main() {
 	mux.HandleFunc("POST /chat/messages", server.SendChatMessage)
 	mux.HandleFunc("GET /chat/messages", server.GetChatMessages)
 	mux.HandleFunc("GET /health", server.HealthHandler)
+	mux.HandleFunc("GET /version", server.GetVersion)
 
 	srv := &http.Server{
 		Addr:         ":" + port,

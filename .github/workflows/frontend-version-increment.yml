@@ -1,0 +1,39 @@
+name: Frontend Version Increment
+
+on:
+  workflow_run:
+    workflows: ["Frontend Unit Tests"]
+    types:
+      - completed
+    branches:
+      - main
+
+jobs:
+  increment-version:
+    name: Increment Frontend Version
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Increment Version
+        run: |
+          npm version patch --no-git-tag-version
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+        working-directory: frontend
+
+      - name: Commit and Push changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore(frontend): bump version to ${{ env.NEW_VERSION }} [skip ci]"
+          file_pattern: 'frontend/package.json'
