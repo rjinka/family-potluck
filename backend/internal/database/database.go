@@ -72,6 +72,8 @@ type Service interface {
 	CreateHousehold(ctx context.Context, household *models.Household) error
 	GetHousehold(ctx context.Context, id primitive.ObjectID) (*models.Household, error)
 	UpdateHousehold(ctx context.Context, id primitive.ObjectID, update bson.M) error
+	DeleteHousehold(ctx context.Context, id primitive.ObjectID) error
+	RemoveMemberFromHousehold(ctx context.Context, householdID, familyID primitive.ObjectID) error
 }
 
 type service struct {

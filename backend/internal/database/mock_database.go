@@ -50,6 +50,8 @@ type MockService struct {
 	CreateHouseholdFunc                  func(ctx context.Context, household *models.Household) error
 	GetHouseholdFunc                     func(ctx context.Context, id primitive.ObjectID) (*models.Household, error)
 	UpdateHouseholdFunc                  func(ctx context.Context, id primitive.ObjectID, update bson.M) error
+	DeleteHouseholdFunc                  func(ctx context.Context, id primitive.ObjectID) error
+	RemoveMemberFromHouseholdFunc        func(ctx context.Context, householdID, familyID primitive.ObjectID) error
 }
 
 func (m *MockService) Health() map[string]string { return m.HealthFunc() }
@@ -167,4 +169,10 @@ func (m *MockService) GetHousehold(ctx context.Context, id primitive.ObjectID) (
 }
 func (m *MockService) UpdateHousehold(ctx context.Context, id primitive.ObjectID, update bson.M) error {
 	return m.UpdateHouseholdFunc(ctx, id, update)
+}
+func (m *MockService) DeleteHousehold(ctx context.Context, id primitive.ObjectID) error {
+	return m.DeleteHouseholdFunc(ctx, id)
+}
+func (m *MockService) RemoveMemberFromHousehold(ctx context.Context, householdID, familyID primitive.ObjectID) error {
+	return m.RemoveMemberFromHouseholdFunc(ctx, householdID, familyID)
 }

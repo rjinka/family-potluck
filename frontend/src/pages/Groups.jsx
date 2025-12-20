@@ -17,6 +17,7 @@ const Groups = () => {
     const [joinCodeInput, setJoinCodeInput] = useState('');
     const [joining, setJoining] = useState(false);
     const [manageHouseholdModalOpen, setManageHouseholdModalOpen] = useState(false);
+    const [manageHouseholdId, setManageHouseholdId] = useState(null);
 
     useEffect(() => {
         fetchGroups();
@@ -329,6 +330,17 @@ const Groups = () => {
                                                         <p className="font-medium text-gray-800">{member.name}</p>
                                                         <p className="text-xs text-gray-500">Household</p>
                                                     </div>
+                                                    {viewingGroup?.admin_id === user.id && (
+                                                        <button
+                                                            onClick={() => {
+                                                                setManageHouseholdId(member.id);
+                                                                setManageHouseholdModalOpen(true);
+                                                            }}
+                                                            className="ml-auto text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full font-medium hover:bg-purple-200 transition"
+                                                        >
+                                                            Manage
+                                                        </button>
+                                                    )}
                                                 </div>
                                                 <div className="pl-14 space-y-2">
                                                     {member.members.map(fam => (
@@ -377,9 +389,15 @@ const Groups = () => {
 
             <ManageHouseholdModal
                 isOpen={manageHouseholdModalOpen}
-                onClose={() => setManageHouseholdModalOpen(false)}
+                onClose={() => {
+                    setManageHouseholdModalOpen(false);
+                    setManageHouseholdId(null);
+                }}
                 user={user}
                 refreshUser={refreshUser}
+                householdId={manageHouseholdId}
+                isAdmin={viewingGroup?.admin_id === user.id}
+                groupId={viewingGroup?.id}
             />
         </div>
     );

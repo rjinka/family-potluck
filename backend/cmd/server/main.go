@@ -77,6 +77,8 @@ func main() {
 	mux.HandleFunc("POST /households/join", server.JoinHousehold)
 	mux.HandleFunc("POST /households/add-member", server.AddMemberToHousehold)
 	mux.HandleFunc("GET /households/{id}", server.GetHousehold)
+	mux.HandleFunc("DELETE /households/{id}", server.DeleteHousehold)
+	mux.HandleFunc("POST /households/remove-member", server.RemoveMemberFromHousehold)
 	mux.HandleFunc("GET /health", server.HealthHandler)
 	mux.HandleFunc("GET /version", server.GetVersion)
 
