@@ -47,6 +47,9 @@ type MockService struct {
 	UpdateSwapRequestFunc                func(ctx context.Context, id primitive.ObjectID, update bson.M) error
 	CreateChatMessageFunc                func(ctx context.Context, msg *models.ChatMessage) error
 	GetChatMessagesByEventIDFunc         func(ctx context.Context, eventID primitive.ObjectID) ([]models.ChatMessage, error)
+	CreateHouseholdFunc                  func(ctx context.Context, household *models.Household) error
+	GetHouseholdFunc                     func(ctx context.Context, id primitive.ObjectID) (*models.Household, error)
+	UpdateHouseholdFunc                  func(ctx context.Context, id primitive.ObjectID, update bson.M) error
 }
 
 func (m *MockService) Health() map[string]string { return m.HealthFunc() }
@@ -155,4 +158,13 @@ func (m *MockService) CreateChatMessage(ctx context.Context, msg *models.ChatMes
 }
 func (m *MockService) GetChatMessagesByEventID(ctx context.Context, eventID primitive.ObjectID) ([]models.ChatMessage, error) {
 	return m.GetChatMessagesByEventIDFunc(ctx, eventID)
+}
+func (m *MockService) CreateHousehold(ctx context.Context, household *models.Household) error {
+	return m.CreateHouseholdFunc(ctx, household)
+}
+func (m *MockService) GetHousehold(ctx context.Context, id primitive.ObjectID) (*models.Household, error) {
+	return m.GetHouseholdFunc(ctx, id)
+}
+func (m *MockService) UpdateHousehold(ctx context.Context, id primitive.ObjectID, update bson.M) error {
+	return m.UpdateHouseholdFunc(ctx, id, update)
 }

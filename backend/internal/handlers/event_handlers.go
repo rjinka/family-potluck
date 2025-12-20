@@ -346,7 +346,16 @@ func (s *Server) GetEventByCode(w http.ResponseWriter, r *http.Request) {
 	// Fetch Host Name
 	host, err := s.DB.GetFamilyByID(context.Background(), event.HostID)
 	if err == nil {
-		event.HostName = host.Name
+		if host.HouseholdID != nil {
+			household, err := s.DB.GetHousehold(context.Background(), *host.HouseholdID)
+			if err == nil {
+				event.HostName = household.Name
+			} else {
+				event.HostName = host.Name
+			}
+		} else {
+			event.HostName = host.Name
+		}
 	}
 
 	json.NewEncoder(w).Encode(event)
@@ -369,7 +378,16 @@ func (s *Server) GetEvent(w http.ResponseWriter, r *http.Request) {
 	// Fetch Host Name
 	host, err := s.DB.GetFamilyByID(context.Background(), event.HostID)
 	if err == nil {
-		event.HostName = host.Name
+		if host.HouseholdID != nil {
+			household, err := s.DB.GetHousehold(context.Background(), *host.HouseholdID)
+			if err == nil {
+				event.HostName = household.Name
+			} else {
+				event.HostName = host.Name
+			}
+		} else {
+			event.HostName = host.Name
+		}
 	}
 
 	json.NewEncoder(w).Encode(event)

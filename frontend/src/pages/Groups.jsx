@@ -4,6 +4,7 @@ import { useUI } from '../context/UIContext';
 import api from '../api/axios';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Trash2, Share2, Copy, LogOut, Users } from 'lucide-react';
+import ManageHouseholdModal from '../components/ManageHouseholdModal';
 
 const Groups = () => {
     const { user, login, refreshUser } = useAuth();
@@ -15,6 +16,7 @@ const Groups = () => {
     const [copiedId, setCopiedId] = useState(null);
     const [joinCodeInput, setJoinCodeInput] = useState('');
     const [joining, setJoining] = useState(false);
+    const [manageHouseholdModalOpen, setManageHouseholdModalOpen] = useState(false);
 
     useEffect(() => {
         fetchGroups();
@@ -137,7 +139,26 @@ const Groups = () => {
         setCurrentGroupMembers([]); // Clear previous
         try {
             const response = await api.get(`/groups/members?group_id=${group.id}`);
-            setCurrentGroupMembers(response.data || []);
+            const { families, households } = response.data;
+
+            const householdMap = new Map();
+            if (households) {
+                households.forEach(h => householdMap.set(h.id, { ...h, members: [], isHousehold: true }));
+            }
+
+            const standaloneFamilies = [];
+            if (families) {
+                families.forEach(f => {
+                    if (f.household_id && householdMap.has(f.household_id)) {
+                        householdMap.get(f.household_id).members.push(f);
+                    } else {
+                        standaloneFamilies.push(f);
+                    }
+                });
+            }
+
+            const displayList = [...standaloneFamilies, ...householdMap.values()];
+            setCurrentGroupMembers(displayList);
         } catch (error) {
             console.error("Failed to fetch group members", error);
             showToast("Failed to fetch group members", "error");
@@ -151,7 +172,14 @@ const Groups = () => {
             <div className="w-full max-w-4xl">
                 <div className="text-center mb-12">
                     <h1 className="text-3xl font-bold text-gray-800 mb-2">Welcome, {user?.name}!</h1>
-                    <p className="text-gray-600">Manage your gathering circles.</p>
+                    <p className="text-gray-600 mb-4">Manage your gathering circles.</p>
+                    <button
+                        onClick={() => setManageHouseholdModalOpen(true)}
+                        className="text-sm text-purple-600 font-medium hover:text-purple-800 flex items-center justify-center gap-1 mx-auto"
+                    >
+                        <Users className="w-4 h-4" />
+                        Manage Household
+                    </button>
                 </div>
 
                 <div className="grid md:grid-cols-2 gap-8">
@@ -289,29 +317,70 @@ const Groups = () => {
                             {currentGroupMembers.length === 0 ? (
                                 <p className="text-gray-500 text-center py-4">Loading members...</p>
                             ) : (
-                                currentGroupMembers.map(member => (
-                                    <div key={member.id} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg">
-                                        {member.picture ? (
-                                            <img src={member.picture} alt={member.name} className="w-10 h-10 rounded-full object-cover border border-gray-200" />
-                                        ) : (
-                                            <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-bold border border-orange-200">
-                                                {member.name.charAt(0)}
+                                currentGroupMembers.map(member => {
+                                    if (member.isHousehold) {
+                                        return (
+                                            <div key={member.id} className="p-3 bg-gray-50 rounded-lg border border-gray-100">
+                                                <div className="flex items-center gap-3 mb-2">
+                                                    <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 font-bold border border-purple-200">
+                                                        <Users className="w-5 h-5" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-medium text-gray-800">{member.name}</p>
+                                                        <p className="text-xs text-gray-500">Household</p>
+                                                    </div>
+                                                </div>
+                                                <div className="pl-14 space-y-2">
+                                                    {member.members.map(fam => (
+                                                        <div key={fam.id} className="flex items-center gap-2 text-sm text-gray-600">
+                                                            {fam.picture ? (
+                                                                <img src={fam.picture} alt={fam.name} className="w-6 h-6 rounded-full object-cover" />
+                                                            ) : (
+                                                                <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-medium">
+                                                                    {fam.name.charAt(0)}
+                                                                </div>
+                                                            )}
+                                                            <span>{fam.name}</span>
+                                                            {viewingGroup?.admin_id === fam.id && (
+                                                                <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-medium">Admin</span>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
                                             </div>
-                                        )}
-                                        <div>
-                                            <p className="font-medium text-gray-800">{member.name}</p>
-                                            <p className="text-xs text-gray-500">{member.email}</p>
+                                        );
+                                    }
+                                    return (
+                                        <div key={member.id} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg">
+                                            {member.picture ? (
+                                                <img src={member.picture} alt={member.name} className="w-10 h-10 rounded-full object-cover border border-gray-200" />
+                                            ) : (
+                                                <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-bold border border-orange-200">
+                                                    {member.name.charAt(0)}
+                                                </div>
+                                            )}
+                                            <div>
+                                                <p className="font-medium text-gray-800">{member.name}</p>
+                                                <p className="text-xs text-gray-500">{member.email}</p>
+                                            </div>
+                                            {viewingGroup?.admin_id === member.id && (
+                                                <span className="ml-auto text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-medium">Admin</span>
+                                            )}
                                         </div>
-                                        {viewingGroup?.admin_id === member.id && (
-                                            <span className="ml-auto text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-medium">Admin</span>
-                                        )}
-                                    </div>
-                                ))
+                                    );
+                                })
                             )}
                         </div>
                     </div>
                 </div>
             )}
+
+            <ManageHouseholdModal
+                isOpen={manageHouseholdModalOpen}
+                onClose={() => setManageHouseholdModalOpen(false)}
+                user={user}
+                refreshUser={refreshUser}
+            />
         </div>
     );
 };

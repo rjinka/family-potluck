@@ -14,12 +14,12 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-var jwtKey = []byte(os.Getenv("JWT_SECRET"))
-
-func init() {
-	if len(jwtKey) == 0 {
-		jwtKey = []byte("my_secret_key") // Fallback for dev
+func getJWTKey() []byte {
+	key := os.Getenv("JWT_SECRET")
+	if key == "" {
+		return []byte("my_secret_key") // Fallback for dev
 	}
+	return []byte(key)
 }
 
 type Claims struct {
@@ -36,7 +36,7 @@ func GenerateToken(userID string) (string, error) {
 		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(jwtKey)
+	return token.SignedString(getJWTKey())
 }
 
 func setTokenCookie(w http.ResponseWriter, token string) {
@@ -149,7 +149,7 @@ func (s *Server) GetMe(w http.ResponseWriter, r *http.Request) {
 	claims := &Claims{}
 
 	token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
-		return jwtKey, nil
+		return getJWTKey(), nil
 	})
 
 	if err != nil || !token.Valid {

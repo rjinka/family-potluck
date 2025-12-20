@@ -10,9 +10,14 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	if err := godotenv.Load(); err != nil {
+		log.Println("No .env file found")
+	}
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
@@ -68,6 +73,10 @@ func main() {
 	mux.HandleFunc("GET /swaps", server.GetSwapRequests)
 	mux.HandleFunc("POST /chat/messages", server.SendChatMessage)
 	mux.HandleFunc("GET /chat/messages", server.GetChatMessages)
+	mux.HandleFunc("POST /households", server.CreateHousehold)
+	mux.HandleFunc("POST /households/join", server.JoinHousehold)
+	mux.HandleFunc("POST /households/add-member", server.AddMemberToHousehold)
+	mux.HandleFunc("GET /households/{id}", server.GetHousehold)
 	mux.HandleFunc("GET /health", server.HealthHandler)
 	mux.HandleFunc("GET /version", server.GetVersion)
 

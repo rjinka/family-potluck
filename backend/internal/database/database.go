@@ -67,6 +67,11 @@ type Service interface {
 	// Chat
 	CreateChatMessage(ctx context.Context, msg *models.ChatMessage) error
 	GetChatMessagesByEventID(ctx context.Context, eventID primitive.ObjectID) ([]models.ChatMessage, error)
+
+	// Households
+	CreateHousehold(ctx context.Context, household *models.Household) error
+	GetHousehold(ctx context.Context, id primitive.ObjectID) (*models.Household, error)
+	UpdateHousehold(ctx context.Context, id primitive.ObjectID, update bson.M) error
 }
 
 type service struct {
@@ -451,4 +456,24 @@ func (s *service) GetChatMessagesByEventID(ctx context.Context, eventID primitiv
 		return nil, err
 	}
 	return msgs, nil
+}
+
+// Households implementation
+func (s *service) CreateHousehold(ctx context.Context, household *models.Household) error {
+	_, err := s.db.Collection("households").InsertOne(ctx, household)
+	return err
+}
+
+func (s *service) GetHousehold(ctx context.Context, id primitive.ObjectID) (*models.Household, error) {
+	var household models.Household
+	err := s.db.Collection("households").FindOne(ctx, bson.M{"_id": id}).Decode(&household)
+	if err != nil {
+		return nil, err
+	}
+	return &household, nil
+}
+
+func (s *service) UpdateHousehold(ctx context.Context, id primitive.ObjectID, update bson.M) error {
+	_, err := s.db.Collection("households").UpdateOne(ctx, bson.M{"_id": id}, update)
+	return err
 }

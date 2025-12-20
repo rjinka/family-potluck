@@ -16,6 +16,13 @@ type Family struct {
 	Allergies          string               `json:"allergies" bson:"allergies"`
 	DietaryPreferences []string             `json:"dietary_preferences" bson:"dietary_preferences"` // e.g., ["Vegan", "Gluten-Free"]
 	GroupIDs           []primitive.ObjectID `json:"group_ids" bson:"group_ids,omitempty"`
+	HouseholdID        *primitive.ObjectID  `json:"household_id,omitempty" bson:"household_id,omitempty"`
+}
+
+type Household struct {
+	ID        primitive.ObjectID   `json:"id" bson:"_id,omitempty"`
+	Name      string               `json:"name" bson:"name"`             // e.g., "The Smiths"
+	MemberIDs []primitive.ObjectID `json:"member_ids" bson:"member_ids"` // IDs of Family members
 }
 
 type Group struct {

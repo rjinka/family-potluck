@@ -253,5 +253,32 @@ func (s *Server) GetGroupMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(families)
+	// Fetch households for these families
+	householdIDs := make([]primitive.ObjectID, 0)
+	seen := make(map[string]bool)
+	for _, f := range families {
+		if f.HouseholdID != nil {
+			if !seen[f.HouseholdID.Hex()] {
+				householdIDs = append(householdIDs, *f.HouseholdID)
+				seen[f.HouseholdID.Hex()] = true
+			}
+		}
+	}
+
+	var households []models.Household
+	if len(householdIDs) > 0 {
+		// We need a GetHouseholdsByIDs method in DB or just loop (inefficient but fine for now)
+		// For now, let's just loop as I didn't add GetHouseholdsByIDs
+		for _, hID := range householdIDs {
+			h, err := s.DB.GetHousehold(context.Background(), hID)
+			if err == nil {
+				households = append(households, *h)
+			}
+		}
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"families":   families,
+		"households": households,
+	})
 }
