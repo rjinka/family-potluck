@@ -28,9 +28,9 @@ func TestCreateSwapRequest(t *testing.T) {
 	}
 
 	swapReq := models.SwapRequest{
-		EventID:            eventID,
-		RequestingFamilyID: familyID,
-		Type:               "host",
+		EventID:                  eventID,
+		RequestingFamilyMemberID: familyID,
+		Type:                     "host",
 	}
 	body, _ := json.Marshal(swapReq)
 
@@ -56,16 +56,16 @@ func TestGetSwapRequests(t *testing.T) {
 
 	eventID := primitive.NewObjectID()
 	requests := []models.SwapRequest{
-		{ID: primitive.NewObjectID(), EventID: eventID, RequestingFamilyID: primitive.NewObjectID()},
-		{ID: primitive.NewObjectID(), EventID: eventID, RequestingFamilyID: primitive.NewObjectID()},
+		{ID: primitive.NewObjectID(), EventID: eventID, RequestingFamilyMemberID: primitive.NewObjectID()},
+		{ID: primitive.NewObjectID(), EventID: eventID, RequestingFamilyMemberID: primitive.NewObjectID()},
 	}
 
 	mockDB.GetSwapRequestsByEventIDFunc = func(ctx context.Context, id primitive.ObjectID) ([]models.SwapRequest, error) {
 		return requests, nil
 	}
 
-	mockDB.GetFamilyByIDFunc = func(ctx context.Context, id primitive.ObjectID) (*models.Family, error) {
-		return &models.Family{ID: id, Name: "Test Family"}, nil
+	mockDB.GetFamilyMemberByIDFunc = func(ctx context.Context, id primitive.ObjectID) (*models.FamilyMember, error) {
+		return &models.FamilyMember{ID: id, Name: "Test Family"}, nil
 	}
 
 	req, _ := http.NewRequest("GET", "/swaps?event_id="+eventID.Hex(), nil)

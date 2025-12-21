@@ -26,14 +26,14 @@ func (s *Server) SendChatMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 2. Get Family to check Group Membership
-	family, err := s.DB.GetFamilyByID(context.Background(), msg.FamilyID)
+	familyMember, err := s.DB.GetFamilyMemberByID(context.Background(), msg.FamilyMemberID)
 	if err != nil {
 		http.Error(w, "Family not found", http.StatusNotFound)
 		return
 	}
 
 	isMember := false
-	for _, gid := range family.GroupIDs {
+	for _, gid := range familyMember.GroupIDs {
 		if gid == event.GroupID {
 			isMember = true
 			break
@@ -48,7 +48,7 @@ func (s *Server) SendChatMessage(w http.ResponseWriter, r *http.Request) {
 	// Set metadata
 	msg.ID = primitive.NewObjectID()
 	msg.CreatedAt = time.Now()
-	msg.FamilyName = family.Name // Ensure name is correct from DB
+	msg.FamilyName = familyMember.Name // Ensure name is correct from DB
 
 	// Save to DB
 	err = s.DB.CreateChatMessage(context.Background(), &msg)

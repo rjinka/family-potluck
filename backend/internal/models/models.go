@@ -6,7 +6,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-type Family struct {
+type FamilyMember struct {
 	ID                 primitive.ObjectID   `json:"id" bson:"_id,omitempty"`
 	Name               string               `json:"name" bson:"name"`
 	Email              string               `json:"email" bson:"email"`
@@ -21,8 +21,10 @@ type Family struct {
 
 type Household struct {
 	ID        primitive.ObjectID   `json:"id" bson:"_id,omitempty"`
-	Name      string               `json:"name" bson:"name"`             // e.g., "The Smiths"
+	Name      string               `json:"name" bson:"name"` // e.g., "The Smiths"
+	Address   string               `json:"address" bson:"address"`
 	MemberIDs []primitive.ObjectID `json:"member_ids" bson:"member_ids"` // IDs of Family members
+	Members   []FamilyMember       `json:"members,omitempty" bson:"-"`   // Full member details for response
 }
 
 type Group struct {
@@ -51,7 +53,7 @@ type Event struct {
 type RSVP struct {
 	ID                 primitive.ObjectID `json:"id" bson:"_id,omitempty"`
 	EventID            primitive.ObjectID `json:"event_id" bson:"event_id"`
-	FamilyID           primitive.ObjectID `json:"family_id" bson:"family_id"`
+	FamilyMemberID     primitive.ObjectID `json:"family_id" bson:"family_id"`
 	FamilyName         string             `json:"family_name,omitempty" bson:"-"`
 	FamilyPicture      string             `json:"family_picture,omitempty" bson:"-"`
 	Status             string             `json:"status" bson:"status"` // Yes, No, Maybe
@@ -73,23 +75,23 @@ type Dish struct {
 }
 
 type SwapRequest struct {
-	ID                   primitive.ObjectID  `json:"id" bson:"_id,omitempty"`
-	EventID              primitive.ObjectID  `json:"event_id" bson:"event_id"`
-	DishID               *primitive.ObjectID `json:"dish_id,omitempty" bson:"dish_id,omitempty"`
-	Type                 string              `json:"type" bson:"type"` // "dish" or "host"
-	RequestingFamilyID   primitive.ObjectID  `json:"requesting_family_id" bson:"requesting_family_id"`
-	RequestingFamilyName string              `json:"requesting_family_name,omitempty" bson:"-"`
-	TargetFamilyID       *primitive.ObjectID `json:"target_family_id" bson:"target_family_id,omitempty"`
-	TargetFamilyName     string              `json:"target_family_name,omitempty" bson:"-"`
-	Status               string              `json:"status" bson:"status"` // Pending, Approved, Rejected
-	CreatedAt            time.Time           `json:"created_at" bson:"created_at"`
+	ID                       primitive.ObjectID  `json:"id" bson:"_id,omitempty"`
+	EventID                  primitive.ObjectID  `json:"event_id" bson:"event_id"`
+	DishID                   *primitive.ObjectID `json:"dish_id,omitempty" bson:"dish_id,omitempty"`
+	Type                     string              `json:"type" bson:"type"` // "dish" or "host"
+	RequestingFamilyMemberID primitive.ObjectID  `json:"requesting_family_id" bson:"requesting_family_id"`
+	RequestingFamilyName     string              `json:"requesting_family_name,omitempty" bson:"-"`
+	TargetFamilyMemberID     *primitive.ObjectID `json:"target_family_id" bson:"target_family_id,omitempty"`
+	TargetFamilyName         string              `json:"target_family_name,omitempty" bson:"-"`
+	Status                   string              `json:"status" bson:"status"` // Pending, Approved, Rejected
+	CreatedAt                time.Time           `json:"created_at" bson:"created_at"`
 }
 
 type ChatMessage struct {
-	ID         primitive.ObjectID `json:"id" bson:"_id,omitempty"`
-	EventID    primitive.ObjectID `json:"event_id" bson:"event_id"`
-	FamilyID   primitive.ObjectID `json:"family_id" bson:"family_id"`
-	FamilyName string             `json:"family_name" bson:"family_name"`
-	Content    string             `json:"content" bson:"content"`
-	CreatedAt  time.Time          `json:"created_at" bson:"created_at"`
+	ID             primitive.ObjectID `json:"id" bson:"_id,omitempty"`
+	EventID        primitive.ObjectID `json:"event_id" bson:"event_id"`
+	FamilyMemberID primitive.ObjectID `json:"family_id" bson:"family_id"`
+	FamilyName     string             `json:"family_name" bson:"family_name"`
+	Content        string             `json:"content" bson:"content"`
+	CreatedAt      time.Time          `json:"created_at" bson:"created_at"`
 }

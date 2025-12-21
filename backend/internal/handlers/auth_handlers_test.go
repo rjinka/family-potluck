@@ -84,11 +84,11 @@ func TestGoogleLogin_NewUser(t *testing.T) {
 		}, nil
 	}
 
-	mockDB.GetFamilyByEmailFunc = func(ctx context.Context, e string) (*models.Family, error) {
+	mockDB.GetFamilyMemberByEmailFunc = func(ctx context.Context, e string) (*models.FamilyMember, error) {
 		return nil, database.ErrNoDocuments // Assuming you have this or use mongo.ErrNoDocuments
 	}
 
-	mockDB.CreateFamilyFunc = func(ctx context.Context, f *models.Family) error {
+	mockDB.CreateFamilyMemberFunc = func(ctx context.Context, f *models.FamilyMember) error {
 		f.ID = familyID
 		return nil
 	}
@@ -107,7 +107,7 @@ func TestGoogleLogin_NewUser(t *testing.T) {
 		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusCreated)
 	}
 
-	var resp models.Family
+	var resp models.FamilyMember
 	json.NewDecoder(rr.Body).Decode(&resp)
 	if resp.Email != email {
 		t.Errorf("expected email %v, got %v", email, resp.Email)

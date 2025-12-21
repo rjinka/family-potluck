@@ -355,10 +355,9 @@ const Dashboard = () => {
                                     </div>
 
                                     <div className="md:col-span-2">
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Location (Leave empty to use your household address)</label>
                                         <input
                                             type="text"
-                                            required
                                             placeholder="e.g. 123 Main St or Central Park"
                                             className="w-full p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
                                             value={newEvent.location}

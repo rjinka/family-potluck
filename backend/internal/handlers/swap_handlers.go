@@ -50,9 +50,9 @@ func (s *Server) UpdateSwapRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var update struct {
-		Status         string              `json:"status"`
-		TargetFamilyID *primitive.ObjectID `json:"target_family_id"`
-		EventUpdates   *struct {
+		Status               string              `json:"status"`
+		TargetFamilyMemberID *primitive.ObjectID `json:"target_family_id"`
+		EventUpdates         *struct {
 			Date     time.Time `json:"date"`
 			Location string    `json:"location"`
 		} `json:"event_updates"`
@@ -70,9 +70,9 @@ func (s *Server) UpdateSwapRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	updateFields := bson.M{"status": update.Status}
-	if update.TargetFamilyID != nil {
-		updateFields["target_family_id"] = update.TargetFamilyID
-		req.TargetFamilyID = update.TargetFamilyID // Update local object for broadcast
+	if update.TargetFamilyMemberID != nil {
+		updateFields["target_family_id"] = update.TargetFamilyMemberID
+		req.TargetFamilyMemberID = update.TargetFamilyMemberID // Update local object for broadcast
 	}
 
 	err = s.DB.UpdateSwapRequest(context.Background(), id, bson.M{"$set": updateFields})
@@ -89,8 +89,8 @@ func (s *Server) UpdateSwapRequest(w http.ResponseWriter, r *http.Request) {
 		if req.Type == "host" {
 			// Update Event Host
 			var newHostID primitive.ObjectID
-			if req.TargetFamilyID != nil {
-				newHostID = *req.TargetFamilyID
+			if req.TargetFamilyMemberID != nil {
+				newHostID = *req.TargetFamilyMemberID
 			}
 
 			eventUpdateDoc := bson.M{"host_id": newHostID}
@@ -125,16 +125,16 @@ func (s *Server) UpdateSwapRequest(w http.ResponseWriter, r *http.Request) {
 			currentDish, err := s.DB.GetDishByID(context.Background(), *req.DishID)
 
 			var newBringerID primitive.ObjectID
-			if err == nil && currentDish.BringerID != nil && *currentDish.BringerID == req.RequestingFamilyID {
+			if err == nil && currentDish.BringerID != nil && *currentDish.BringerID == req.RequestingFamilyMemberID {
 				// Requester is the current bringer -> It's an Offer -> Target (Acceptor) becomes bringer
-				if req.TargetFamilyID != nil {
-					newBringerID = *req.TargetFamilyID
+				if req.TargetFamilyMemberID != nil {
+					newBringerID = *req.TargetFamilyMemberID
 				} else {
-					newBringerID = req.RequestingFamilyID
+					newBringerID = req.RequestingFamilyMemberID
 				}
 			} else {
 				// Requester is NOT the current bringer -> It's a Request -> Requester becomes bringer
-				newBringerID = req.RequestingFamilyID
+				newBringerID = req.RequestingFamilyMemberID
 			}
 
 			err = s.DB.UpdateDish(
@@ -151,7 +151,7 @@ func (s *Server) UpdateSwapRequest(w http.ResponseWriter, r *http.Request) {
 					"data": map[string]interface{}{
 						"dish_id":    req.DishID,
 						"event_id":   req.EventID,
-						"bringer_id": req.RequestingFamilyID,
+						"bringer_id": req.RequestingFamilyMemberID,
 					},
 				}
 				dishMsgBytes, _ := json.Marshal(dishMsg)
@@ -192,15 +192,15 @@ func (s *Server) GetSwapRequests(w http.ResponseWriter, r *http.Request) {
 
 	// Populate family names
 	for i := range requests {
-		requestingFamily, err := s.DB.GetFamilyByID(context.Background(), requests[i].RequestingFamilyID)
+		requestingFamilyMember, err := s.DB.GetFamilyMemberByID(context.Background(), requests[i].RequestingFamilyMemberID)
 		if err == nil {
-			requests[i].RequestingFamilyName = requestingFamily.Name
+			requests[i].RequestingFamilyName = requestingFamilyMember.Name
 		}
 
-		if requests[i].TargetFamilyID != nil {
-			targetFamily, err := s.DB.GetFamilyByID(context.Background(), *requests[i].TargetFamilyID)
+		if requests[i].TargetFamilyMemberID != nil {
+			targetFamilyMember, err := s.DB.GetFamilyMemberByID(context.Background(), *requests[i].TargetFamilyMemberID)
 			if err == nil {
-				requests[i].TargetFamilyName = targetFamily.Name
+				requests[i].TargetFamilyName = targetFamilyMember.Name
 			}
 		}
 	}

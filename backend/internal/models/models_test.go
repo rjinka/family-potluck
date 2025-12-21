@@ -8,9 +8,9 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-func TestFamilyStruct(t *testing.T) {
+func TestFamilyMemberStruct(t *testing.T) {
 	id := primitive.NewObjectID()
-	family := Family{
+	familyMember := FamilyMember{
 		ID:       id,
 		Name:     "Test Family",
 		Email:    "test@example.com",
@@ -18,23 +18,23 @@ func TestFamilyStruct(t *testing.T) {
 	}
 
 	// Test JSON Marshaling
-	data, err := json.Marshal(family)
+	data, err := json.Marshal(familyMember)
 	if err != nil {
-		t.Fatalf("Failed to marshal Family: %v", err)
+		t.Fatalf("Failed to marshal FamilyMember: %v", err)
 	}
 
 	// Test JSON Unmarshaling
-	var decoded Family
+	var decoded FamilyMember
 	err = json.Unmarshal(data, &decoded)
 	if err != nil {
-		t.Fatalf("Failed to unmarshal Family: %v", err)
+		t.Fatalf("Failed to unmarshal FamilyMember: %v", err)
 	}
 
-	if decoded.ID != family.ID {
-		t.Errorf("Expected ID %v, got %v", family.ID, decoded.ID)
+	if decoded.ID != familyMember.ID {
+		t.Errorf("Expected ID %v, got %v", familyMember.ID, decoded.ID)
 	}
-	if decoded.Name != family.Name {
-		t.Errorf("Expected Name %v, got %v", family.Name, decoded.Name)
+	if decoded.Name != familyMember.Name {
+		t.Errorf("Expected Name %v, got %v", familyMember.Name, decoded.Name)
 	}
 }
 

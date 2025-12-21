@@ -9,7 +9,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-func (s *Server) GetFamily(w http.ResponseWriter, r *http.Request) {
+func (s *Server) GetFamilyMember(w http.ResponseWriter, r *http.Request) {
 	idStr := r.URL.Query().Get("id")
 	if idStr == "" {
 		http.Error(w, "Missing id parameter", http.StatusBadRequest)
@@ -22,16 +22,16 @@ func (s *Server) GetFamily(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	family, err := s.DB.GetFamilyByID(context.Background(), id)
+	familyMember, err := s.DB.GetFamilyMemberByID(context.Background(), id)
 	if err != nil {
-		http.Error(w, "Family not found", http.StatusNotFound)
+		http.Error(w, "Family member not found", http.StatusNotFound)
 		return
 	}
 
-	json.NewEncoder(w).Encode(family)
+	json.NewEncoder(w).Encode(familyMember)
 }
 
-func (s *Server) UpdateFamily(w http.ResponseWriter, r *http.Request) {
+func (s *Server) UpdateFamilyMember(w http.ResponseWriter, r *http.Request) {
 	idStr := r.PathValue("id")
 	if idStr == "" {
 		http.Error(w, "Missing id parameter", http.StatusBadRequest)
@@ -69,7 +69,7 @@ func (s *Server) UpdateFamily(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.DB.UpdateFamily(context.Background(), id, bson.M{"$set": update})
+	err = s.DB.UpdateFamilyMember(context.Background(), id, bson.M{"$set": update})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

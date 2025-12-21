@@ -10,48 +10,48 @@ import (
 )
 
 type MockService struct {
-	HealthFunc                           func() map[string]string
-	CloseFunc                            func() error
-	GetCollectionFunc                    func(name string) *mongo.Collection
-	GetFamilyByEmailFunc                 func(ctx context.Context, email string) (*models.Family, error)
-	GetFamilyByIDFunc                    func(ctx context.Context, id primitive.ObjectID) (*models.Family, error)
-	CreateFamilyFunc                     func(ctx context.Context, family *models.Family) error
-	UpdateFamilyFunc                     func(ctx context.Context, id primitive.ObjectID, update bson.M) error
-	GetFamiliesByGroupIDFunc             func(ctx context.Context, groupID primitive.ObjectID) ([]models.Family, error)
-	GetFamiliesByIDsFunc                 func(ctx context.Context, ids []primitive.ObjectID) ([]models.Family, error)
-	RemoveGroupIDFromAllFamiliesFunc     func(ctx context.Context, groupID primitive.ObjectID) error
-	CountGroupsByNameFunc                func(ctx context.Context, name string) (int64, error)
-	CreateGroupFunc                      func(ctx context.Context, group *models.Group) error
-	GetGroupFunc                         func(ctx context.Context, id primitive.ObjectID) (*models.Group, error)
-	GetGroupByCodeFunc                   func(ctx context.Context, code string) (*models.Group, error)
-	GetGroupsFunc                        func(ctx context.Context) ([]models.Group, error)
-	DeleteGroupFunc                      func(ctx context.Context, id primitive.ObjectID) error
-	CreateEventFunc                      func(ctx context.Context, event *models.Event) error
-	GetEventFunc                         func(ctx context.Context, id primitive.ObjectID) (*models.Event, error)
-	GetEventByCodeFunc                   func(ctx context.Context, code string) (*models.Event, error)
-	GetEventsByGroupIDFunc               func(ctx context.Context, groupID primitive.ObjectID, includeCompleted bool) ([]models.Event, error)
-	GetEventsByUserIDFunc                func(ctx context.Context, userID primitive.ObjectID) ([]models.Event, error)
-	UpdateEventFunc                      func(ctx context.Context, id primitive.ObjectID, update bson.M) error
-	DeleteEventFunc                      func(ctx context.Context, id primitive.ObjectID) error
-	GetCompletedEventsByRecurrenceIDFunc func(ctx context.Context, recurrenceID primitive.ObjectID) ([]models.Event, error)
-	CreateDishFunc                       func(ctx context.Context, dish *models.Dish) error
-	GetDishesByEventIDFunc               func(ctx context.Context, eventID primitive.ObjectID) ([]models.Dish, error)
-	GetDishByIDFunc                      func(ctx context.Context, id primitive.ObjectID) (*models.Dish, error)
-	UpdateDishFunc                       func(ctx context.Context, id primitive.ObjectID, update bson.M) error
-	DeleteDishFunc                       func(ctx context.Context, id primitive.ObjectID) error
-	UpsertRSVPFunc                       func(ctx context.Context, rsvp *models.RSVP) (primitive.ObjectID, error)
-	GetRSVPsByEventIDFunc                func(ctx context.Context, eventID primitive.ObjectID) ([]models.RSVP, error)
-	CreateSwapRequestFunc                func(ctx context.Context, swap *models.SwapRequest) error
-	GetSwapRequestsByEventIDFunc         func(ctx context.Context, eventID primitive.ObjectID) ([]models.SwapRequest, error)
-	GetSwapRequestByIDFunc               func(ctx context.Context, id primitive.ObjectID) (*models.SwapRequest, error)
-	UpdateSwapRequestFunc                func(ctx context.Context, id primitive.ObjectID, update bson.M) error
-	CreateChatMessageFunc                func(ctx context.Context, msg *models.ChatMessage) error
-	GetChatMessagesByEventIDFunc         func(ctx context.Context, eventID primitive.ObjectID) ([]models.ChatMessage, error)
-	CreateHouseholdFunc                  func(ctx context.Context, household *models.Household) error
-	GetHouseholdFunc                     func(ctx context.Context, id primitive.ObjectID) (*models.Household, error)
-	UpdateHouseholdFunc                  func(ctx context.Context, id primitive.ObjectID, update bson.M) error
-	DeleteHouseholdFunc                  func(ctx context.Context, id primitive.ObjectID) error
-	RemoveMemberFromHouseholdFunc        func(ctx context.Context, householdID, familyID primitive.ObjectID) error
+	HealthFunc                            func() map[string]string
+	CloseFunc                             func() error
+	GetCollectionFunc                     func(name string) *mongo.Collection
+	GetFamilyMemberByEmailFunc            func(ctx context.Context, email string) (*models.FamilyMember, error)
+	GetFamilyMemberByIDFunc               func(ctx context.Context, id primitive.ObjectID) (*models.FamilyMember, error)
+	CreateFamilyMemberFunc                func(ctx context.Context, familyMember *models.FamilyMember) error
+	UpdateFamilyMemberFunc                func(ctx context.Context, id primitive.ObjectID, update bson.M) error
+	GetFamilyMembersByGroupIDFunc         func(ctx context.Context, groupID primitive.ObjectID) ([]models.FamilyMember, error)
+	GetFamilyMembersByIDsFunc             func(ctx context.Context, ids []primitive.ObjectID) ([]models.FamilyMember, error)
+	RemoveGroupIDFromAllFamilyMembersFunc func(ctx context.Context, groupID primitive.ObjectID) error
+	CountGroupsByNameFunc                 func(ctx context.Context, name string) (int64, error)
+	CreateGroupFunc                       func(ctx context.Context, group *models.Group) error
+	GetGroupFunc                          func(ctx context.Context, id primitive.ObjectID) (*models.Group, error)
+	GetGroupByCodeFunc                    func(ctx context.Context, code string) (*models.Group, error)
+	GetGroupsFunc                         func(ctx context.Context) ([]models.Group, error)
+	DeleteGroupFunc                       func(ctx context.Context, id primitive.ObjectID) error
+	CreateEventFunc                       func(ctx context.Context, event *models.Event) error
+	GetEventFunc                          func(ctx context.Context, id primitive.ObjectID) (*models.Event, error)
+	GetEventByCodeFunc                    func(ctx context.Context, code string) (*models.Event, error)
+	GetEventsByGroupIDFunc                func(ctx context.Context, groupID primitive.ObjectID, includeCompleted bool) ([]models.Event, error)
+	GetEventsByUserIDFunc                 func(ctx context.Context, userID primitive.ObjectID) ([]models.Event, error)
+	UpdateEventFunc                       func(ctx context.Context, id primitive.ObjectID, update bson.M) error
+	DeleteEventFunc                       func(ctx context.Context, id primitive.ObjectID) error
+	GetCompletedEventsByRecurrenceIDFunc  func(ctx context.Context, recurrenceID primitive.ObjectID) ([]models.Event, error)
+	CreateDishFunc                        func(ctx context.Context, dish *models.Dish) error
+	GetDishesByEventIDFunc                func(ctx context.Context, eventID primitive.ObjectID) ([]models.Dish, error)
+	GetDishByIDFunc                       func(ctx context.Context, id primitive.ObjectID) (*models.Dish, error)
+	UpdateDishFunc                        func(ctx context.Context, id primitive.ObjectID, update bson.M) error
+	DeleteDishFunc                        func(ctx context.Context, id primitive.ObjectID) error
+	UpsertRSVPFunc                        func(ctx context.Context, rsvp *models.RSVP) (primitive.ObjectID, error)
+	GetRSVPsByEventIDFunc                 func(ctx context.Context, eventID primitive.ObjectID) ([]models.RSVP, error)
+	CreateSwapRequestFunc                 func(ctx context.Context, swap *models.SwapRequest) error
+	GetSwapRequestsByEventIDFunc          func(ctx context.Context, eventID primitive.ObjectID) ([]models.SwapRequest, error)
+	GetSwapRequestByIDFunc                func(ctx context.Context, id primitive.ObjectID) (*models.SwapRequest, error)
+	UpdateSwapRequestFunc                 func(ctx context.Context, id primitive.ObjectID, update bson.M) error
+	CreateChatMessageFunc                 func(ctx context.Context, msg *models.ChatMessage) error
+	GetChatMessagesByEventIDFunc          func(ctx context.Context, eventID primitive.ObjectID) ([]models.ChatMessage, error)
+	CreateHouseholdFunc                   func(ctx context.Context, household *models.Household) error
+	GetHouseholdFunc                      func(ctx context.Context, id primitive.ObjectID) (*models.Household, error)
+	UpdateHouseholdFunc                   func(ctx context.Context, id primitive.ObjectID, update bson.M) error
+	DeleteHouseholdFunc                   func(ctx context.Context, id primitive.ObjectID) error
+	RemoveMemberFromHouseholdFunc         func(ctx context.Context, householdID, familyID primitive.ObjectID) error
 }
 
 func (m *MockService) Health() map[string]string { return m.HealthFunc() }
@@ -59,26 +59,26 @@ func (m *MockService) Close() error              { return m.CloseFunc() }
 func (m *MockService) GetCollection(name string) *mongo.Collection {
 	return m.GetCollectionFunc(name)
 }
-func (m *MockService) GetFamilyByEmail(ctx context.Context, email string) (*models.Family, error) {
-	return m.GetFamilyByEmailFunc(ctx, email)
+func (m *MockService) GetFamilyMemberByEmail(ctx context.Context, email string) (*models.FamilyMember, error) {
+	return m.GetFamilyMemberByEmailFunc(ctx, email)
 }
-func (m *MockService) GetFamilyByID(ctx context.Context, id primitive.ObjectID) (*models.Family, error) {
-	return m.GetFamilyByIDFunc(ctx, id)
+func (m *MockService) GetFamilyMemberByID(ctx context.Context, id primitive.ObjectID) (*models.FamilyMember, error) {
+	return m.GetFamilyMemberByIDFunc(ctx, id)
 }
-func (m *MockService) CreateFamily(ctx context.Context, family *models.Family) error {
-	return m.CreateFamilyFunc(ctx, family)
+func (m *MockService) CreateFamilyMember(ctx context.Context, familyMember *models.FamilyMember) error {
+	return m.CreateFamilyMemberFunc(ctx, familyMember)
 }
-func (m *MockService) UpdateFamily(ctx context.Context, id primitive.ObjectID, update bson.M) error {
-	return m.UpdateFamilyFunc(ctx, id, update)
+func (m *MockService) UpdateFamilyMember(ctx context.Context, id primitive.ObjectID, update bson.M) error {
+	return m.UpdateFamilyMemberFunc(ctx, id, update)
 }
-func (m *MockService) GetFamiliesByGroupID(ctx context.Context, groupID primitive.ObjectID) ([]models.Family, error) {
-	return m.GetFamiliesByGroupIDFunc(ctx, groupID)
+func (m *MockService) GetFamilyMembersByGroupID(ctx context.Context, groupID primitive.ObjectID) ([]models.FamilyMember, error) {
+	return m.GetFamilyMembersByGroupIDFunc(ctx, groupID)
 }
-func (m *MockService) GetFamiliesByIDs(ctx context.Context, ids []primitive.ObjectID) ([]models.Family, error) {
-	return m.GetFamiliesByIDsFunc(ctx, ids)
+func (m *MockService) GetFamilyMembersByIDs(ctx context.Context, ids []primitive.ObjectID) ([]models.FamilyMember, error) {
+	return m.GetFamilyMembersByIDsFunc(ctx, ids)
 }
-func (m *MockService) RemoveGroupIDFromAllFamilies(ctx context.Context, groupID primitive.ObjectID) error {
-	return m.RemoveGroupIDFromAllFamiliesFunc(ctx, groupID)
+func (m *MockService) RemoveGroupIDFromAllFamilyMembers(ctx context.Context, groupID primitive.ObjectID) error {
+	return m.RemoveGroupIDFromAllFamilyMembersFunc(ctx, groupID)
 }
 func (m *MockService) CountGroupsByName(ctx context.Context, name string) (int64, error) {
 	return m.CountGroupsByNameFunc(ctx, name)

@@ -27,6 +27,9 @@ func TestCreateEvent(t *testing.T) {
 	mockDB.CreateEventFunc = func(ctx context.Context, event *models.Event) error {
 		return nil
 	}
+	mockDB.GetFamilyMemberByIDFunc = func(ctx context.Context, id primitive.ObjectID) (*models.FamilyMember, error) {
+		return &models.FamilyMember{ID: id}, nil
+	}
 
 	eventReq := models.Event{
 		GroupID:     groupID,
@@ -110,5 +113,51 @@ func TestDeleteEvent_Unauthorized(t *testing.T) {
 
 	if status := rr.Code; status != http.StatusForbidden {
 		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusForbidden)
+	}
+}
+
+func TestCreateEvent_WithHouseholdAddress(t *testing.T) {
+	mockDB := &database.MockService{}
+	hub := websocket.NewHub()
+	go hub.Run()
+	server := NewServer(mockDB, hub)
+
+	groupID := primitive.NewObjectID()
+	hostID := primitive.NewObjectID()
+	householdID := primitive.NewObjectID()
+	expectedAddress := "123 Main St"
+
+	mockDB.CreateEventFunc = func(ctx context.Context, event *models.Event) error {
+		return nil
+	}
+	mockDB.GetFamilyMemberByIDFunc = func(ctx context.Context, id primitive.ObjectID) (*models.FamilyMember, error) {
+		return &models.FamilyMember{ID: id, HouseholdID: &householdID}, nil
+	}
+	mockDB.GetHouseholdFunc = func(ctx context.Context, id primitive.ObjectID) (*models.Household, error) {
+		return &models.Household{ID: id, Address: expectedAddress}, nil
+	}
+
+	eventReq := models.Event{
+		GroupID:     groupID,
+		HostID:      hostID,
+		Description: "Test Event",
+		Date:        time.Now().Add(24 * time.Hour),
+		Location:    "", // Empty location
+	}
+	body, _ := json.Marshal(eventReq)
+
+	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer(body))
+	rr := httptest.NewRecorder()
+
+	server.CreateEvent(rr, req)
+
+	if status := rr.Code; status != http.StatusCreated {
+		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusCreated)
+	}
+
+	var resp models.Event
+	json.NewDecoder(rr.Body).Decode(&resp)
+	if resp.Location != expectedAddress {
+		t.Errorf("expected location %v, got %v", expectedAddress, resp.Location)
 	}
 }

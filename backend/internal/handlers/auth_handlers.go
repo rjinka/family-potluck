@@ -74,23 +74,23 @@ func (s *Server) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 	picture := payload.Claims["picture"].(string)
 	sub := payload.Subject // Google ID
 
-	family, err := s.DB.GetFamilyByEmail(ctx, email)
+	familyMember, err := s.DB.GetFamilyMemberByEmail(ctx, email)
 
 	if err == mongo.ErrNoDocuments {
 		// Create new user
-		newFamily := models.Family{
+		newFamilyMember := models.FamilyMember{
 			ID:       primitive.NewObjectID(),
 			Name:     name,
 			Email:    email,
 			GoogleID: sub,
 			Picture:  picture,
 		}
-		err = s.DB.CreateFamily(ctx, &newFamily)
+		err = s.DB.CreateFamilyMember(ctx, &newFamilyMember)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		family = &newFamily
+		familyMember = &newFamilyMember
 		w.WriteHeader(http.StatusCreated)
 	} else if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -104,14 +104,14 @@ func (s *Server) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 				"google_id": sub,
 			},
 		}
-		err = s.DB.UpdateFamily(ctx, family.ID, update)
+		err = s.DB.UpdateFamilyMember(ctx, familyMember.ID, update)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	}
 
-	token, err := GenerateToken(family.ID.Hex())
+	token, err := GenerateToken(familyMember.ID.Hex())
 	if err != nil {
 		http.Error(w, "Failed to generate token", http.StatusInternalServerError)
 		return
@@ -119,7 +119,7 @@ func (s *Server) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 	setTokenCookie(w, token)
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(family)
+	json.NewEncoder(w).Encode(familyMember)
 }
 
 func (s *Server) Logout(w http.ResponseWriter, r *http.Request) {
@@ -164,11 +164,11 @@ func (s *Server) GetMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	family, err := s.DB.GetFamilyByID(context.Background(), userID)
+	familyMember, err := s.DB.GetFamilyMemberByID(context.Background(), userID)
 	if err != nil {
 		http.Error(w, "User not found", http.StatusUnauthorized)
 		return
 	}
 
-	json.NewEncoder(w).Encode(family)
+	json.NewEncoder(w).Encode(familyMember)
 }

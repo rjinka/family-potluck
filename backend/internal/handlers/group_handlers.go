@@ -38,7 +38,7 @@ func (s *Server) CreateGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update admin's family to join this group
-	err = s.DB.UpdateFamily(
+	err = s.DB.UpdateFamilyMember(
 		context.Background(),
 		group.AdminID,
 		bson.M{"$push": bson.M{"group_ids": group.ID}},
@@ -56,17 +56,17 @@ func (s *Server) CreateGroup(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) JoinGroup(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		FamilyID primitive.ObjectID `json:"family_id"`
-		GroupID  primitive.ObjectID `json:"group_id"`
+		FamilyMemberID primitive.ObjectID `json:"family_id"`
+		GroupID        primitive.ObjectID `json:"group_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	err := s.DB.UpdateFamily(
+	err := s.DB.UpdateFamilyMember(
 		context.Background(),
-		req.FamilyID,
+		req.FamilyMemberID,
 		bson.M{"$addToSet": bson.M{"group_ids": req.GroupID}},
 	)
 	if err != nil {
@@ -79,8 +79,8 @@ func (s *Server) JoinGroup(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) LeaveGroup(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		FamilyID primitive.ObjectID `json:"family_id"`
-		GroupID  primitive.ObjectID `json:"group_id"`
+		FamilyMemberID primitive.ObjectID `json:"family_id"`
+		GroupID        primitive.ObjectID `json:"group_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -94,14 +94,14 @@ func (s *Server) LeaveGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if group.AdminID == req.FamilyID {
+	if group.AdminID == req.FamilyMemberID {
 		http.Error(w, "Admin cannot leave the group. Delete the group instead.", http.StatusForbidden)
 		return
 	}
 
-	err = s.DB.UpdateFamily(
+	err = s.DB.UpdateFamilyMember(
 		context.Background(),
-		req.FamilyID,
+		req.FamilyMemberID,
 		bson.M{"$pull": bson.M{"group_ids": req.GroupID}},
 	)
 	if err != nil {
@@ -114,8 +114,8 @@ func (s *Server) LeaveGroup(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) JoinGroupByCode(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		FamilyID primitive.ObjectID `json:"family_id"`
-		JoinCode string             `json:"join_code"`
+		FamilyMemberID primitive.ObjectID `json:"family_id"`
+		JoinCode       string             `json:"join_code"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -129,9 +129,9 @@ func (s *Server) JoinGroupByCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.DB.UpdateFamily(
+	err = s.DB.UpdateFamilyMember(
 		context.Background(),
-		req.FamilyID,
+		req.FamilyMemberID,
 		bson.M{"$addToSet": bson.M{"group_ids": group.ID}},
 	)
 	if err != nil {
@@ -225,7 +225,7 @@ func (s *Server) DeleteGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Remove group_id from all families
-	err = s.DB.RemoveGroupIDFromAllFamilies(context.Background(), id)
+	err = s.DB.RemoveGroupIDFromAllFamilyMembers(context.Background(), id)
 	if err != nil {
 		// Log error but success for group deletion
 		fmt.Printf("Failed to remove group from families: %v\n", err)
@@ -247,7 +247,7 @@ func (s *Server) GetGroupMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	families, err := s.DB.GetFamiliesByGroupID(context.Background(), groupID)
+	familyMembers, err := s.DB.GetFamilyMembersByGroupID(context.Background(), groupID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -256,7 +256,7 @@ func (s *Server) GetGroupMembers(w http.ResponseWriter, r *http.Request) {
 	// Fetch households for these families
 	householdIDs := make([]primitive.ObjectID, 0)
 	seen := make(map[string]bool)
-	for _, f := range families {
+	for _, f := range familyMembers {
 		if f.HouseholdID != nil {
 			if !seen[f.HouseholdID.Hex()] {
 				householdIDs = append(householdIDs, *f.HouseholdID)
@@ -278,7 +278,7 @@ func (s *Server) GetGroupMembers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"families":   families,
+		"families":   familyMembers,
 		"households": households,
 	})
 }

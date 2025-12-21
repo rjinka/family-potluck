@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"family-potluck/backend/internal/models"
+	"log"
 	"net/http"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -12,8 +13,9 @@ import (
 
 func (s *Server) CreateHousehold(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Name     string             `json:"name"`
-		FamilyID primitive.ObjectID `json:"family_id"`
+		Name           string             `json:"name"`
+		Address        string             `json:"address"`
+		FamilyMemberID primitive.ObjectID `json:"family_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -23,7 +25,8 @@ func (s *Server) CreateHousehold(w http.ResponseWriter, r *http.Request) {
 	household := models.Household{
 		ID:        primitive.NewObjectID(),
 		Name:      req.Name,
-		MemberIDs: []primitive.ObjectID{req.FamilyID},
+		Address:   req.Address,
+		MemberIDs: []primitive.ObjectID{req.FamilyMemberID},
 	}
 
 	err := s.DB.CreateHousehold(context.Background(), &household)
@@ -33,9 +36,9 @@ func (s *Server) CreateHousehold(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update family with household ID
-	err = s.DB.UpdateFamily(
+	err = s.DB.UpdateFamilyMember(
 		context.Background(),
-		req.FamilyID,
+		req.FamilyMemberID,
 		bson.M{"$set": bson.M{"household_id": household.ID}},
 	)
 	if err != nil {
@@ -50,8 +53,8 @@ func (s *Server) CreateHousehold(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) JoinHousehold(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		HouseholdID primitive.ObjectID `json:"household_id"`
-		FamilyID    primitive.ObjectID `json:"family_id"`
+		HouseholdID    primitive.ObjectID `json:"household_id"`
+		FamilyMemberID primitive.ObjectID `json:"family_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -62,7 +65,7 @@ func (s *Server) JoinHousehold(w http.ResponseWriter, r *http.Request) {
 	err := s.DB.UpdateHousehold(
 		context.Background(),
 		req.HouseholdID,
-		bson.M{"$addToSet": bson.M{"member_ids": req.FamilyID}},
+		bson.M{"$addToSet": bson.M{"member_ids": req.FamilyMemberID}},
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -70,9 +73,9 @@ func (s *Server) JoinHousehold(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update Family
-	err = s.DB.UpdateFamily(
+	err = s.DB.UpdateFamilyMember(
 		context.Background(),
-		req.FamilyID,
+		req.FamilyMemberID,
 		bson.M{"$set": bson.M{"household_id": req.HouseholdID}},
 	)
 	if err != nil {
@@ -97,6 +100,17 @@ func (s *Server) GetHousehold(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Fetch members details
+	if len(household.MemberIDs) > 0 {
+		members, err := s.DB.GetFamilyMembersByIDs(context.Background(), household.MemberIDs)
+		if err != nil {
+			// Log error but continue with empty members
+			log.Printf("Error fetching household members: %v", err)
+		} else {
+			household.Members = members
+		}
+	}
+
 	json.NewEncoder(w).Encode(household)
 }
 
@@ -111,7 +125,7 @@ func (s *Server) AddMemberToHousehold(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Find family by email
-	family, err := s.DB.GetFamilyByEmail(context.Background(), req.Email)
+	familyMember, err := s.DB.GetFamilyMemberByEmail(context.Background(), req.Email)
 	if err != nil {
 		http.Error(w, "User not found with that email", http.StatusNotFound)
 		return
@@ -121,7 +135,7 @@ func (s *Server) AddMemberToHousehold(w http.ResponseWriter, r *http.Request) {
 	err = s.DB.UpdateHousehold(
 		context.Background(),
 		req.HouseholdID,
-		bson.M{"$addToSet": bson.M{"member_ids": family.ID}},
+		bson.M{"$addToSet": bson.M{"member_ids": familyMember.ID}},
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -129,9 +143,9 @@ func (s *Server) AddMemberToHousehold(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update Family
-	err = s.DB.UpdateFamily(
+	err = s.DB.UpdateFamilyMember(
 		context.Background(),
-		family.ID,
+		familyMember.ID,
 		bson.M{"$set": bson.M{"household_id": req.HouseholdID}},
 	)
 	if err != nil {
@@ -196,10 +210,10 @@ func (s *Server) DeleteHousehold(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) RemoveMemberFromHousehold(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		HouseholdID primitive.ObjectID  `json:"household_id"`
-		FamilyID    primitive.ObjectID  `json:"family_id"`
-		AdminID     *primitive.ObjectID `json:"admin_id,omitempty"`
-		GroupID     *primitive.ObjectID `json:"group_id,omitempty"`
+		HouseholdID    primitive.ObjectID  `json:"household_id"`
+		FamilyMemberID primitive.ObjectID  `json:"family_id"`
+		AdminID        *primitive.ObjectID `json:"admin_id,omitempty"`
+		GroupID        *primitive.ObjectID `json:"group_id,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -219,9 +233,48 @@ func (s *Server) RemoveMemberFromHousehold(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	err := s.DB.RemoveMemberFromHousehold(context.Background(), req.HouseholdID, req.FamilyID)
+	err := s.DB.RemoveMemberFromHousehold(context.Background(), req.HouseholdID, req.FamilyMemberID)
 	if err != nil {
 		http.Error(w, "Failed to remove member", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func (s *Server) UpdateHousehold(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	id, err := primitive.ObjectIDFromHex(idStr)
+	if err != nil {
+		http.Error(w, "Invalid household id", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		Name    string `json:"name"`
+		Address string `json:"address"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	update := bson.M{}
+	if req.Name != "" {
+		update["name"] = req.Name
+	}
+	if req.Address != "" {
+		update["address"] = req.Address
+	}
+
+	if len(update) == 0 {
+		http.Error(w, "No fields to update", http.StatusBadRequest)
+		return
+	}
+
+	err = s.DB.UpdateHousehold(context.Background(), id, bson.M{"$set": update})
+	if err != nil {
+		http.Error(w, "Failed to update household", http.StatusInternalServerError)
 		return
 	}
 

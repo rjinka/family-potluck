@@ -21,7 +21,7 @@ func TestCreateHousehold(t *testing.T) {
 	mockDB.CreateHouseholdFunc = func(ctx context.Context, household *models.Household) error {
 		return nil
 	}
-	mockDB.UpdateFamilyFunc = func(ctx context.Context, id primitive.ObjectID, update bson.M) error {
+	mockDB.UpdateFamilyMemberFunc = func(ctx context.Context, id primitive.ObjectID, update bson.M) error {
 		return nil
 	}
 
@@ -47,7 +47,7 @@ func TestJoinHousehold(t *testing.T) {
 	mockDB.UpdateHouseholdFunc = func(ctx context.Context, id primitive.ObjectID, update bson.M) error {
 		return nil
 	}
-	mockDB.UpdateFamilyFunc = func(ctx context.Context, id primitive.ObjectID, update bson.M) error {
+	mockDB.UpdateFamilyMemberFunc = func(ctx context.Context, id primitive.ObjectID, update bson.M) error {
 		return nil
 	}
 

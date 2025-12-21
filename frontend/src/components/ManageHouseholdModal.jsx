@@ -8,9 +8,13 @@ const ManageHouseholdModal = ({ isOpen, onClose, user, refreshUser, householdId,
     const [household, setHousehold] = useState(null);
     const [loading, setLoading] = useState(false);
     const [createName, setCreateName] = useState('');
+    const [createAddress, setCreateAddress] = useState('');
     const [addEmail, setAddEmail] = useState('');
     const [addingMember, setAddingMember] = useState(false);
     const [members, setMembers] = useState([]);
+    const [updateName, setUpdateName] = useState('');
+    const [updateAddress, setUpdateAddress] = useState('');
+    const [updating, setUpdating] = useState(false);
 
     const targetHouseholdId = householdId || user?.household_id;
 
@@ -20,6 +24,8 @@ const ManageHouseholdModal = ({ isOpen, onClose, user, refreshUser, householdId,
         } else {
             setHousehold(null);
             setMembers([]);
+            setCreateName('');
+            setCreateAddress('');
         }
     }, [isOpen, targetHouseholdId]);
 
@@ -28,30 +34,18 @@ const ManageHouseholdModal = ({ isOpen, onClose, user, refreshUser, householdId,
         try {
             const response = await api.get(`/households/${targetHouseholdId}`);
             setHousehold(response.data);
+            setUpdateName(response.data.name);
+            setUpdateAddress(response.data.address || '');
 
-            // Fetch members details
-            if (response.data.member_ids && response.data.member_ids.length > 0) {
-                // We don't have a direct endpoint for families by IDs yet, but we can use the group members endpoint if we have groupId
-                // Or we can just rely on what we have. 
-                // Ideally we should have an endpoint to get families by IDs.
-                // For now, let's try to use the group members endpoint if available, or just show IDs if not.
-                // Actually, let's assume we can't easily get names without a new endpoint.
-                // But wait, the user wants to manage members. Seeing IDs is useless.
-                // Let's check if we can use `GetFamiliesByIDs` which exists in DB but not exposed in API?
-                // It is NOT exposed in API.
-                // However, if we are in a group context (groupId provided), we can fetch group members and filter.
-                if (groupId) {
-                    const membersResponse = await api.get(`/groups/members?group_id=${groupId}`);
-                    const allFamilies = membersResponse.data.families || [];
-                    const householdMembers = allFamilies.filter(f => response.data.member_ids.includes(f.id));
-                    setMembers(householdMembers);
-                } else {
-                    // Fallback: if user is logged in, maybe we can get their own family details?
-                    // If we are managing our own household, we know our own details.
-                    // But for others...
-                    // Let's just show the count if we can't get names, or try to implement a better way.
-                    // For now, let's rely on the fact that usually we are in a group context.
-                }
+            // Use members details from response if available
+            if (response.data.members) {
+                setMembers(response.data.members);
+            } else if (response.data.member_ids && response.data.member_ids.length > 0 && groupId) {
+                // Fallback to group members if backend didn't provide them
+                const membersResponse = await api.get(`/groups/members?group_id=${groupId}`);
+                const allFamilies = membersResponse.data.families || [];
+                const householdMembers = allFamilies.filter(f => response.data.member_ids.includes(f.id));
+                setMembers(householdMembers);
             }
         } catch (error) {
             console.error("Failed to fetch household", error);
@@ -67,6 +61,7 @@ const ManageHouseholdModal = ({ isOpen, onClose, user, refreshUser, householdId,
         try {
             const response = await api.post('/households', {
                 name: createName,
+                address: createAddress,
                 family_id: user.id
             });
             await refreshUser();
@@ -75,6 +70,25 @@ const ManageHouseholdModal = ({ isOpen, onClose, user, refreshUser, householdId,
         } catch (error) {
             console.error("Failed to create household", error);
             showToast("Failed to create household", "error");
+        }
+    };
+
+    const handleUpdateHousehold = async (e) => {
+        e.preventDefault();
+        if (!updateName) return;
+        setUpdating(true);
+        try {
+            await api.patch(`/households/${targetHouseholdId}`, {
+                name: updateName,
+                address: updateAddress
+            });
+            showToast("Household updated successfully!");
+            fetchHousehold();
+        } catch (error) {
+            console.error("Failed to update household", error);
+            showToast("Failed to update household", "error");
+        } finally {
+            setUpdating(false);
         }
     };
 
@@ -165,26 +179,66 @@ const ManageHouseholdModal = ({ isOpen, onClose, user, refreshUser, householdId,
                 {loading ? (
                     <div className="text-center py-8 text-gray-500">Loading...</div>
                 ) : household ? (
-                    <div className="space-y-6">
+                    <>
                         <div className="bg-purple-50 p-4 rounded-lg border border-purple-100">
-                            <div className="flex items-center gap-3">
-                                <div className="bg-purple-100 p-2 rounded-full">
-                                    <Users className="w-6 h-6 text-purple-600" />
-                                </div>
-                                <div>
-                                    <h4 className="font-semibold text-gray-800">{household.name}</h4>
-                                    <p className="text-sm text-gray-500">{household.member_ids?.length || 1} members</p>
+                            <div className="flex items-start justify-between gap-3 mb-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="bg-purple-100 p-2 rounded-full">
+                                        <Users className="w-6 h-6 text-purple-600" />
+                                    </div>
+                                    <div>
+                                        <h4 className="font-semibold text-gray-800">{household.name}</h4>
+                                        <p className="text-sm text-gray-500">{household.member_ids?.length || 1} members</p>
+                                        {household.address && (
+                                            <p className="text-xs text-gray-500 mt-1">{household.address}</p>
+                                        )}
+                                    </div>
                                 </div>
                                 {(isAdmin || user.household_id === household.id) && (
                                     <button
                                         onClick={handleDeleteHousehold}
-                                        className="ml-auto text-red-500 hover:text-red-700 p-2"
+                                        className="text-red-500 hover:text-red-700 p-2"
                                         title="Delete Household"
                                     >
                                         <Trash2 className="w-5 h-5" />
                                     </button>
                                 )}
                             </div>
+
+                            {(isAdmin || user.household_id === household.id) && (
+                                <form onSubmit={handleUpdateHousehold} className="space-y-3 border-t border-purple-200 pt-3">
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-700 mb-1">Update Name</label>
+                                        <input
+                                            type="text"
+                                            value={updateName}
+                                            onChange={(e) => setUpdateName(e.target.value)}
+                                            className="w-full p-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 outline-none"
+                                            placeholder="Household Name"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-700 mb-1">Update Address</label>
+                                        <input
+                                            type="text"
+                                            value={updateAddress}
+                                            onChange={(e) => setUpdateAddress(e.target.value)}
+                                            className="w-full p-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 outline-none"
+                                            placeholder="Household Address"
+                                        />
+                                    </div>
+                                    <div className="flex justify-end">
+                                        <button
+                                            type="submit"
+                                            disabled={updating}
+                                            className="bg-purple-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-purple-700 transition disabled:opacity-50 flex items-center gap-1"
+                                        >
+                                            <Save className="w-3 h-3" />
+                                            {updating ? 'Saving...' : 'Save Changes'}
+                                        </button>
+                                    </div>
+                                </form>
+                            )}
                         </div>
 
                         <div>
@@ -237,7 +291,7 @@ const ManageHouseholdModal = ({ isOpen, onClose, user, refreshUser, householdId,
                                 Enter the email of the family member you want to add. They must already have an account.
                             </p>
                         </div>
-                    </div>
+                    </>
                 ) : (
                     <div>
                         <div className="text-center mb-6">
@@ -251,15 +305,30 @@ const ManageHouseholdModal = ({ isOpen, onClose, user, refreshUser, householdId,
                         </div>
 
                         <form onSubmit={handleCreateHousehold}>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Household Name</label>
-                            <input
-                                type="text"
-                                placeholder="e.g. The Smiths"
-                                className="w-full p-3 border border-gray-200 rounded-lg mb-4 focus:ring-2 focus:ring-purple-500 outline-none"
-                                value={createName}
-                                onChange={(e) => setCreateName(e.target.value)}
-                                required
-                            />
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Household Name</label>
+                                <input
+                                    type="text"
+                                    placeholder="e.g. The Smiths"
+                                    className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none"
+                                    value={createName}
+                                    onChange={(e) => setCreateName(e.target.value)}
+                                    required
+                                />
+                            </div>
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Address (Optional)</label>
+                                <input
+                                    type="text"
+                                    placeholder="e.g. 123 Main St"
+                                    className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none"
+                                    value={createAddress}
+                                    onChange={(e) => setCreateAddress(e.target.value)}
+                                />
+                                <p className="text-xs text-gray-500 mt-1">
+                                    If set, this address will be automatically used for events hosted by this household.
+                                </p>
+                            </div>
                             <button
                                 type="submit"
                                 className="w-full bg-purple-600 text-white py-3 rounded-lg font-medium hover:bg-purple-700 transition"
@@ -270,7 +339,7 @@ const ManageHouseholdModal = ({ isOpen, onClose, user, refreshUser, householdId,
                     </div>
                 )}
             </div>
-        </div>
+        </div >
     );
 };
 
