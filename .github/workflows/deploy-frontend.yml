@@ -41,5 +41,5 @@ jobs:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_FAMILY_POTLUCK }}
           channelId: live
-          projectId: family-potluck
+          projectId: family-gather-fe
           entryPoint: frontend
