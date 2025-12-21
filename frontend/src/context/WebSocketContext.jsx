@@ -9,9 +9,24 @@ export const WebSocketProvider = ({ children }) => {
     useEffect(() => {
         // Connect to WebSocket
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        // Assuming backend is running on port 8080 or same host/port if proxied
-        // Use window.location.hostname to allow connection from other devices on the network
-        const wsUrl = `ws://${window.location.hostname}:5000/ws`;
+
+        let wsHost;
+        const apiUrl = import.meta.env.VITE_API_URL;
+
+        if (apiUrl) {
+            // Extract host from VITE_API_URL (e.g., https://api.example.com -> api.example.com)
+            try {
+                const url = new URL(apiUrl);
+                wsHost = url.host;
+            } catch (e) {
+                console.error("Invalid VITE_API_URL", e);
+                wsHost = `${window.location.hostname}:5000`;
+            }
+        } else {
+            wsHost = `${window.location.hostname}:5000`;
+        }
+
+        const wsUrl = `${wsProtocol}//${wsHost}/ws`;
 
         const ws = new WebSocket(wsUrl);
 
