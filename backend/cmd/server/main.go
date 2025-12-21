@@ -101,6 +101,7 @@ func enableCORS(next http.Handler) http.Handler {
 	for i, o := range origins {
 		origins[i] = strings.TrimSpace(o)
 	}
+	origins = append(origins, "https://gather.ramjin.com")
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
