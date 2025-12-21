@@ -40,6 +40,7 @@ func GenerateToken(userID string) (string, error) {
 }
 
 func setTokenCookie(w http.ResponseWriter, token string) {
+	isProduction := os.Getenv("APP_ENV") == "production"
 	http.SetCookie(w, &http.Cookie{
 		Name:     "token",
 		Value:    token,
@@ -47,7 +48,7 @@ func setTokenCookie(w http.ResponseWriter, token string) {
 		HttpOnly: true,
 		Path:     "/",
 		SameSite: http.SameSiteLaxMode,
-		// Secure:   true, // Uncomment in production with HTTPS
+		Secure:   isProduction,
 	})
 }
 
