@@ -1,0 +1,63 @@
+name: Deploy Backend
+
+on:
+  workflow_run:
+    workflows: ["Backend Version Increment"]
+    types:
+      - completed
+    branches:
+      - main
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: us-central1
+  REPO_NAME: family-potluck-repo
+  SERVICE_NAME: family-potluck-backend
+  APP_ENV: production
+
+jobs:
+  deploy:
+    name: Deploy to Cloud Run
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Authenticate to Google Cloud
+      # You need to set up Workload Identity Federation or use a Service Account Key
+      # This example assumes Service Account Key for simplicity, but WIF is recommended.
+      - id: 'auth'
+        uses: 'google-github-actions/auth@v2'
+        with:
+          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker
+        run: |
+          gcloud auth configure-docker us-central1-docker.pkg.dev
+
+      - name: Build and Push Container
+        run: |
+          cd backend
+          docker build -t us-central1-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/$SERVICE_NAME:latest .
+          docker push us-central1-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/$SERVICE_NAME:latest
+
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.SERVICE_NAME }}
+          region: ${{ env.REGION }}
+          image: us-central1-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.SERVICE_NAME }}:latest
+          env_vars: |
+            MONGODB_URI=${{ secrets.MONGODB_URI }}
+            MONGODB_DATABASE=familypotluck
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
+            ALLOWED_ORIGINS=${{ secrets.ALLOWED_ORIGINS }}
+            APP_ENV=${{ env.APP_ENV }}

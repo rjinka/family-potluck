@@ -1,0 +1,36 @@
+name: Backend Version Increment
+
+on:
+  workflow_run:
+    workflows: ["Backend Tests"]
+    types:
+      - completed
+    branches:
+      - main
+
+jobs:
+  increment-version:
+    name: Increment Backend Version
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Increment Version
+        run: |
+          VERSION=$(cat backend/VERSION)
+          IFS='.' read -r major minor patch <<< "$VERSION"
+          patch=$((patch + 1))
+          NEW_VERSION="$major.$minor.$patch"
+          echo $NEW_VERSION > backend/VERSION
+          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+
+      - name: Commit and Push changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore(backend): bump version to ${{ env.NEW_VERSION }} [skip ci]"
+          file_pattern: 'backend/VERSION'
