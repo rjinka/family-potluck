@@ -29,7 +29,16 @@ func (s *Server) CreateEvent(w http.ResponseWriter, r *http.Request) {
 		event.RecurrenceID = primitive.NewObjectID()
 	}
 
-	err := s.DB.CreateEvent(context.Background(), &event)
+	// Check if host is in a household and set address if needed
+	hostFamilyMember, err := s.DB.GetFamilyMemberByID(context.Background(), event.HostID)
+	if err == nil && hostFamilyMember.HouseholdID != nil {
+		household, err := s.DB.GetHousehold(context.Background(), *hostFamilyMember.HouseholdID)
+		if err == nil && household.Address != "" && event.Location == "" {
+			event.Location = household.Address
+		}
+	}
+
+	err = s.DB.CreateEvent(context.Background(), &event)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -104,15 +113,25 @@ func (s *Server) FinishEvent(w http.ResponseWriter, r *http.Request) {
 	newEvent.GuestIDs = []primitive.ObjectID{}  // Clear guest list
 	newEvent.GuestJoinCode = generateJoinCode() // Generate new join code
 
+	// Get old host address for comparison
+	oldHost, err := s.DB.GetFamilyMemberByID(context.Background(), event.HostID)
+	var oldAddress string
+	if err == nil && oldHost.HouseholdID != nil {
+		oldHousehold, err := s.DB.GetHousehold(context.Background(), *oldHost.HouseholdID)
+		if err == nil {
+			oldAddress = oldHousehold.Address
+		}
+	}
+
 	// Rotate Host
-	members, err := s.DB.GetFamiliesByGroupID(context.Background(), event.GroupID)
-	if err == nil && len(members) > 0 {
-		sort.Slice(members, func(i, j int) bool {
-			return members[i].ID.Hex() < members[j].ID.Hex()
+	familyMembers, err := s.DB.GetFamilyMembersByGroupID(context.Background(), event.GroupID)
+	if err == nil && len(familyMembers) > 0 {
+		sort.Slice(familyMembers, func(i, j int) bool {
+			return familyMembers[i].ID.Hex() < familyMembers[j].ID.Hex()
 		})
 
 		currentIndex := -1
-		for i, m := range members {
+		for i, m := range familyMembers {
 			if m.ID == event.HostID {
 				currentIndex = i
 				break
@@ -120,10 +139,21 @@ func (s *Server) FinishEvent(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if currentIndex != -1 {
-			nextIndex := (currentIndex + 1) % len(members)
-			newEvent.HostID = members[nextIndex].ID
+			nextIndex := (currentIndex + 1) % len(familyMembers)
+			newEvent.HostID = familyMembers[nextIndex].ID
 		} else {
-			newEvent.HostID = members[0].ID
+			newEvent.HostID = familyMembers[0].ID
+		}
+
+		// Update location to new host's address if it was the old host's address or empty
+		newHost, err := s.DB.GetFamilyMemberByID(context.Background(), newEvent.HostID)
+		if err == nil && newHost.HouseholdID != nil {
+			newHousehold, err := s.DB.GetHousehold(context.Background(), *newHost.HouseholdID)
+			if err == nil && newHousehold.Address != "" {
+				if newEvent.Location == "" || newEvent.Location == oldAddress {
+					newEvent.Location = newHousehold.Address
+				}
+			}
 		}
 	}
 
@@ -285,8 +315,8 @@ func (s *Server) GetUserEvents(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) JoinEventByCode(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		FamilyID primitive.ObjectID `json:"family_id"`
-		JoinCode string             `json:"join_code"`
+		FamilyMemberID primitive.ObjectID `json:"family_id"`
+		JoinCode       string             `json:"join_code"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -308,7 +338,7 @@ func (s *Server) JoinEventByCode(w http.ResponseWriter, r *http.Request) {
 
 	// Add user to guest_ids if not already present
 	for _, id := range event.GuestIDs {
-		if id == req.FamilyID {
+		if id == req.FamilyMemberID {
 			w.WriteHeader(http.StatusOK)
 			json.NewEncoder(w).Encode(event)
 			return
@@ -318,7 +348,7 @@ func (s *Server) JoinEventByCode(w http.ResponseWriter, r *http.Request) {
 	err = s.DB.UpdateEvent(
 		context.Background(),
 		event.ID,
-		bson.M{"$push": bson.M{"guest_ids": req.FamilyID}},
+		bson.M{"$push": bson.M{"guest_ids": req.FamilyMemberID}},
 	)
 	if err != nil {
 		http.Error(w, "Failed to join event", http.StatusInternalServerError)
@@ -344,7 +374,7 @@ func (s *Server) GetEventByCode(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch Host Name
-	host, err := s.DB.GetFamilyByID(context.Background(), event.HostID)
+	host, err := s.DB.GetFamilyMemberByID(context.Background(), event.HostID)
 	if err == nil {
 		if host.HouseholdID != nil {
 			household, err := s.DB.GetHousehold(context.Background(), *host.HouseholdID)
@@ -376,7 +406,7 @@ func (s *Server) GetEvent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch Host Name
-	host, err := s.DB.GetFamilyByID(context.Background(), event.HostID)
+	host, err := s.DB.GetFamilyMemberByID(context.Background(), event.HostID)
 	if err == nil {
 		if host.HouseholdID != nil {
 			household, err := s.DB.GetHousehold(context.Background(), *host.HouseholdID)
@@ -496,23 +526,23 @@ func (s *Server) GetEventStats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type HostStat struct {
-		FamilyID   string `json:"family_id"`
-		FamilyName string `json:"family_name"`
-		Count      int    `json:"count"`
+		FamilyMemberID string `json:"family_id"`
+		FamilyName     string `json:"family_name"`
+		Count          int    `json:"count"`
 	}
 	var stats []HostStat
 
 	for hostID, count := range hostCounts {
 		hID, _ := primitive.ObjectIDFromHex(hostID)
-		family, err := s.DB.GetFamilyByID(context.Background(), hID)
+		familyMember, err := s.DB.GetFamilyMemberByID(context.Background(), hID)
 		name := "Unknown"
 		if err == nil {
-			name = family.Name
+			name = familyMember.Name
 		}
 		stats = append(stats, HostStat{
-			FamilyID:   hostID,
-			FamilyName: name,
-			Count:      count,
+			FamilyMemberID: hostID,
+			FamilyName:     name,
+			Count:          count,
 		})
 	}
 

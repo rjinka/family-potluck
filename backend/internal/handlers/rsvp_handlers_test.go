@@ -28,15 +28,15 @@ func TestRSVPEvent(t *testing.T) {
 		return rsvpID, nil
 	}
 
-	mockDB.GetFamilyByIDFunc = func(ctx context.Context, id primitive.ObjectID) (*models.Family, error) {
-		return &models.Family{ID: familyID, Name: "Test Family"}, nil
+	mockDB.GetFamilyMemberByIDFunc = func(ctx context.Context, id primitive.ObjectID) (*models.FamilyMember, error) {
+		return &models.FamilyMember{ID: familyID, Name: "Test Family"}, nil
 	}
 
 	rsvpReq := models.RSVP{
-		EventID:  eventID,
-		FamilyID: familyID,
-		Status:   "Yes",
-		Count:    2,
+		EventID:        eventID,
+		FamilyMemberID: familyID,
+		Status:         "Yes",
+		Count:          2,
 	}
 	body, _ := json.Marshal(rsvpReq)
 
@@ -65,16 +65,16 @@ func TestGetRSVPs(t *testing.T) {
 
 	eventID := primitive.NewObjectID()
 	rsvps := []models.RSVP{
-		{ID: primitive.NewObjectID(), EventID: eventID, FamilyID: primitive.NewObjectID()},
-		{ID: primitive.NewObjectID(), EventID: eventID, FamilyID: primitive.NewObjectID()},
+		{ID: primitive.NewObjectID(), EventID: eventID, FamilyMemberID: primitive.NewObjectID()},
+		{ID: primitive.NewObjectID(), EventID: eventID, FamilyMemberID: primitive.NewObjectID()},
 	}
 
 	mockDB.GetRSVPsByEventIDFunc = func(ctx context.Context, id primitive.ObjectID) ([]models.RSVP, error) {
 		return rsvps, nil
 	}
 
-	mockDB.GetFamilyByIDFunc = func(ctx context.Context, id primitive.ObjectID) (*models.Family, error) {
-		return &models.Family{ID: id, Name: "Test Family"}, nil
+	mockDB.GetFamilyMemberByIDFunc = func(ctx context.Context, id primitive.ObjectID) (*models.FamilyMember, error) {
+		return &models.FamilyMember{ID: id, Name: "Test Family"}, nil
 	}
 
 	req, _ := http.NewRequest("GET", "/rsvps?event_id="+eventID.Hex(), nil)

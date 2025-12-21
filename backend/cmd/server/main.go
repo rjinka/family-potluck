@@ -47,8 +47,8 @@ func main() {
 	mux.HandleFunc("DELETE /groups/{id}", server.DeleteGroup)
 	mux.HandleFunc("GET /groups/{id}", server.GetGroup)
 	mux.HandleFunc("GET /groups", server.GetGroups)
-	mux.HandleFunc("GET /families", server.GetFamily)
-	mux.HandleFunc("PATCH /families/{id}", server.UpdateFamily)
+	mux.HandleFunc("GET /families", server.GetFamilyMember)
+	mux.HandleFunc("PATCH /families/{id}", server.UpdateFamilyMember)
 	mux.HandleFunc("POST /events", server.CreateEvent)
 	mux.HandleFunc("POST /events/{id}/finish", server.FinishEvent)
 	mux.HandleFunc("POST /events/{id}/skip", server.SkipEvent)
@@ -78,6 +78,7 @@ func main() {
 	mux.HandleFunc("POST /households/add-member", server.AddMemberToHousehold)
 	mux.HandleFunc("GET /households/{id}", server.GetHousehold)
 	mux.HandleFunc("DELETE /households/{id}", server.DeleteHousehold)
+	mux.HandleFunc("PATCH /households/{id}", server.UpdateHousehold)
 	mux.HandleFunc("POST /households/remove-member", server.RemoveMemberFromHousehold)
 	mux.HandleFunc("GET /health", server.HealthHandler)
 	mux.HandleFunc("GET /version", server.GetVersion)
@@ -101,6 +102,7 @@ func enableCORS(next http.Handler) http.Handler {
 	for i, o := range origins {
 		origins[i] = strings.TrimSpace(o)
 	}
+	origins = append(origins, "https://gather.ramjin.com")
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")

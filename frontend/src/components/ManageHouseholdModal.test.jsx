@@ -86,7 +86,7 @@ describe('ManageHouseholdModal', () => {
 
     test('handles create household submission', async () => {
         const userNoHousehold = { ...mockUser, household_id: null };
-        const newHousehold = { id: 'new1', name: 'New Family', member_ids: ['user1'] };
+        const newHousehold = { id: 'new1', name: 'New Family', address: '123 St', member_ids: ['user1'] };
         api.post.mockResolvedValueOnce({ data: newHousehold });
 
         render(
@@ -99,11 +99,13 @@ describe('ManageHouseholdModal', () => {
         );
 
         fireEvent.change(screen.getByPlaceholderText('e.g. The Smiths'), { target: { value: 'New Family' } });
+        fireEvent.change(screen.getByPlaceholderText('e.g. 123 Main St'), { target: { value: '123 St' } });
         fireEvent.click(screen.getByText('Create Household'));
 
         await waitFor(() => {
             expect(api.post).toHaveBeenCalledWith('/households', {
                 name: 'New Family',
+                address: '123 St',
                 family_id: 'user1'
             });
             expect(mockRefreshUser).toHaveBeenCalled();

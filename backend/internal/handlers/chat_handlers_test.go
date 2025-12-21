@@ -28,8 +28,8 @@ func TestSendChatMessage(t *testing.T) {
 		return &models.Event{ID: eventID, GroupID: groupID}, nil
 	}
 
-	mockDB.GetFamilyByIDFunc = func(ctx context.Context, id primitive.ObjectID) (*models.Family, error) {
-		return &models.Family{ID: familyID, Name: "Test Family", GroupIDs: []primitive.ObjectID{groupID}}, nil
+	mockDB.GetFamilyMemberByIDFunc = func(ctx context.Context, id primitive.ObjectID) (*models.FamilyMember, error) {
+		return &models.FamilyMember{ID: familyID, Name: "Test Family", GroupIDs: []primitive.ObjectID{groupID}}, nil
 	}
 
 	mockDB.CreateChatMessageFunc = func(ctx context.Context, msg *models.ChatMessage) error {
@@ -37,9 +37,9 @@ func TestSendChatMessage(t *testing.T) {
 	}
 
 	msgReq := models.ChatMessage{
-		EventID:  eventID,
-		FamilyID: familyID,
-		Content:  "Hello",
+		EventID:        eventID,
+		FamilyMemberID: familyID,
+		Content:        "Hello",
 	}
 	body, _ := json.Marshal(msgReq)
 

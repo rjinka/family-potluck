@@ -20,14 +20,14 @@ type Service interface {
 	Close() error
 	GetCollection(name string) *mongo.Collection
 
-	// Families
-	GetFamilyByEmail(ctx context.Context, email string) (*models.Family, error)
-	GetFamilyByID(ctx context.Context, id primitive.ObjectID) (*models.Family, error)
-	CreateFamily(ctx context.Context, family *models.Family) error
-	UpdateFamily(ctx context.Context, id primitive.ObjectID, update bson.M) error
-	GetFamiliesByGroupID(ctx context.Context, groupID primitive.ObjectID) ([]models.Family, error)
-	GetFamiliesByIDs(ctx context.Context, ids []primitive.ObjectID) ([]models.Family, error)
-	RemoveGroupIDFromAllFamilies(ctx context.Context, groupID primitive.ObjectID) error
+	// FamilyMembers
+	GetFamilyMemberByEmail(ctx context.Context, email string) (*models.FamilyMember, error)
+	GetFamilyMemberByID(ctx context.Context, id primitive.ObjectID) (*models.FamilyMember, error)
+	CreateFamilyMember(ctx context.Context, familyMember *models.FamilyMember) error
+	UpdateFamilyMember(ctx context.Context, id primitive.ObjectID, update bson.M) error
+	GetFamilyMembersByGroupID(ctx context.Context, groupID primitive.ObjectID) ([]models.FamilyMember, error)
+	GetFamilyMembersByIDs(ctx context.Context, ids []primitive.ObjectID) ([]models.FamilyMember, error)
+	RemoveGroupIDFromAllFamilyMembers(ctx context.Context, groupID primitive.ObjectID) error
 
 	// Groups
 	CountGroupsByName(ctx context.Context, name string) (int64, error)
@@ -73,7 +73,7 @@ type Service interface {
 	GetHousehold(ctx context.Context, id primitive.ObjectID) (*models.Household, error)
 	UpdateHousehold(ctx context.Context, id primitive.ObjectID, update bson.M) error
 	DeleteHousehold(ctx context.Context, id primitive.ObjectID) error
-	RemoveMemberFromHousehold(ctx context.Context, householdID, familyID primitive.ObjectID) error
+	RemoveMemberFromHousehold(ctx context.Context, householdID, familyMemberID primitive.ObjectID) error
 }
 
 type service struct {
@@ -129,63 +129,63 @@ func (s *service) GetCollection(name string) *mongo.Collection {
 	return s.db.Collection(name)
 }
 
-// Families implementation
-func (s *service) GetFamilyByEmail(ctx context.Context, email string) (*models.Family, error) {
-	var family models.Family
-	err := s.db.Collection("families").FindOne(ctx, bson.M{"email": email}).Decode(&family)
+// FamilyMembers implementation
+func (s *service) GetFamilyMemberByEmail(ctx context.Context, email string) (*models.FamilyMember, error) {
+	var familyMember models.FamilyMember
+	err := s.db.Collection("families").FindOne(ctx, bson.M{"email": email}).Decode(&familyMember)
 	if err != nil {
 		return nil, err
 	}
-	return &family, nil
+	return &familyMember, nil
 }
 
-func (s *service) GetFamilyByID(ctx context.Context, id primitive.ObjectID) (*models.Family, error) {
-	var family models.Family
-	err := s.db.Collection("families").FindOne(ctx, bson.M{"_id": id}).Decode(&family)
+func (s *service) GetFamilyMemberByID(ctx context.Context, id primitive.ObjectID) (*models.FamilyMember, error) {
+	var familyMember models.FamilyMember
+	err := s.db.Collection("families").FindOne(ctx, bson.M{"_id": id}).Decode(&familyMember)
 	if err != nil {
 		return nil, err
 	}
-	return &family, nil
+	return &familyMember, nil
 }
 
-func (s *service) CreateFamily(ctx context.Context, family *models.Family) error {
-	_, err := s.db.Collection("families").InsertOne(ctx, family)
+func (s *service) CreateFamilyMember(ctx context.Context, familyMember *models.FamilyMember) error {
+	_, err := s.db.Collection("families").InsertOne(ctx, familyMember)
 	return err
 }
 
-func (s *service) UpdateFamily(ctx context.Context, id primitive.ObjectID, update bson.M) error {
+func (s *service) UpdateFamilyMember(ctx context.Context, id primitive.ObjectID, update bson.M) error {
 	_, err := s.db.Collection("families").UpdateOne(ctx, bson.M{"_id": id}, update)
 	return err
 }
 
-func (s *service) GetFamiliesByGroupID(ctx context.Context, groupID primitive.ObjectID) ([]models.Family, error) {
+func (s *service) GetFamilyMembersByGroupID(ctx context.Context, groupID primitive.ObjectID) ([]models.FamilyMember, error) {
 	cursor, err := s.db.Collection("families").Find(ctx, bson.M{"group_ids": groupID})
 	if err != nil {
 		return nil, err
 	}
 	defer cursor.Close(ctx)
-	var families []models.Family
-	if err = cursor.All(ctx, &families); err != nil {
+	var familyMembers []models.FamilyMember
+	if err = cursor.All(ctx, &familyMembers); err != nil {
 		return nil, err
 	}
-	return families, nil
+	return familyMembers, nil
 }
 
-func (s *service) GetFamiliesByIDs(ctx context.Context, ids []primitive.ObjectID) ([]models.Family, error) {
+func (s *service) GetFamilyMembersByIDs(ctx context.Context, ids []primitive.ObjectID) ([]models.FamilyMember, error) {
 	filter := bson.M{"_id": bson.M{"$in": ids}}
 	cursor, err := s.db.Collection("families").Find(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
 	defer cursor.Close(ctx)
-	var families []models.Family
-	if err = cursor.All(ctx, &families); err != nil {
+	var familyMembers []models.FamilyMember
+	if err = cursor.All(ctx, &familyMembers); err != nil {
 		return nil, err
 	}
-	return families, nil
+	return familyMembers, nil
 }
 
-func (s *service) RemoveGroupIDFromAllFamilies(ctx context.Context, groupID primitive.ObjectID) error {
+func (s *service) RemoveGroupIDFromAllFamilyMembers(ctx context.Context, groupID primitive.ObjectID) error {
 	_, err := s.db.Collection("families").UpdateMany(
 		ctx,
 		bson.M{"group_ids": groupID},
@@ -367,7 +367,7 @@ func (s *service) DeleteDish(ctx context.Context, id primitive.ObjectID) error {
 func (s *service) UpsertRSVP(ctx context.Context, rsvp *models.RSVP) (primitive.ObjectID, error) {
 	filter := bson.M{
 		"event_id":  rsvp.EventID,
-		"family_id": rsvp.FamilyID,
+		"family_id": rsvp.FamilyMemberID,
 	}
 	update := bson.M{
 		"$set": bson.M{

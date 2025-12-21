@@ -23,12 +23,12 @@ func (s *service) DeleteHousehold(ctx context.Context, id primitive.ObjectID) er
 	return err
 }
 
-func (s *service) RemoveMemberFromHousehold(ctx context.Context, householdID, familyID primitive.ObjectID) error {
+func (s *service) RemoveMemberFromHousehold(ctx context.Context, householdID, familyMemberID primitive.ObjectID) error {
 	// Remove member from household's member_ids
 	_, err := s.db.Collection("households").UpdateOne(
 		ctx,
 		bson.M{"_id": householdID},
-		bson.M{"$pull": bson.M{"member_ids": familyID}},
+		bson.M{"$pull": bson.M{"member_ids": familyMemberID}},
 	)
 	if err != nil {
 		return err
@@ -37,7 +37,7 @@ func (s *service) RemoveMemberFromHousehold(ctx context.Context, householdID, fa
 	// Remove household_id from family
 	_, err = s.db.Collection("families").UpdateOne(
 		ctx,
-		bson.M{"_id": familyID},
+		bson.M{"_id": familyMemberID},
 		bson.M{"$unset": bson.M{"household_id": ""}},
 	)
 	return err

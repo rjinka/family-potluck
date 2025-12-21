@@ -24,9 +24,9 @@ func (s *Server) RSVPEvent(w http.ResponseWriter, r *http.Request) {
 	rsvp.ID = id
 
 	// Fetch Family Name for broadcast
-	family, err := s.DB.GetFamilyByID(context.Background(), rsvp.FamilyID)
+	familyMember, err := s.DB.GetFamilyMemberByID(context.Background(), rsvp.FamilyMemberID)
 	if err == nil {
-		rsvp.FamilyName = family.Name
+		rsvp.FamilyName = familyMember.Name
 	}
 
 	// Broadcast update
@@ -62,11 +62,11 @@ func (s *Server) GetRSVPs(w http.ResponseWriter, r *http.Request) {
 
 	// Populate Family details
 	for i := range rsvps {
-		family, err := s.DB.GetFamilyByID(context.Background(), rsvps[i].FamilyID)
+		familyMember, err := s.DB.GetFamilyMemberByID(context.Background(), rsvps[i].FamilyMemberID)
 		if err == nil {
-			rsvps[i].FamilyName = family.Name
-			rsvps[i].FamilyPicture = family.Picture
-			rsvps[i].DietaryPreferences = family.DietaryPreferences
+			rsvps[i].FamilyName = familyMember.Name
+			rsvps[i].FamilyPicture = familyMember.Picture
+			rsvps[i].DietaryPreferences = familyMember.DietaryPreferences
 		}
 	}
 

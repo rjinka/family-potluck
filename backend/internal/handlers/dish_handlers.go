@@ -66,10 +66,10 @@ func (s *Server) GetDishes(w http.ResponseWriter, r *http.Request) {
 	// Fetch families if there are any bringers
 	bringerNames := make(map[primitive.ObjectID]string)
 	if len(bringerIDs) > 0 {
-		families, err := s.DB.GetFamiliesByIDs(context.Background(), bringerIDs)
+		familyMembers, err := s.DB.GetFamilyMembersByIDs(context.Background(), bringerIDs)
 		if err == nil {
-			for _, family := range families {
-				bringerNames[family.ID] = family.Name
+			for _, familyMember := range familyMembers {
+				bringerNames[familyMember.ID] = familyMember.Name
 			}
 		}
 	}
@@ -95,7 +95,7 @@ func (s *Server) PledgeDish(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		FamilyID primitive.ObjectID `json:"family_id"`
+		FamilyMemberID primitive.ObjectID `json:"family_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -112,7 +112,7 @@ func (s *Server) PledgeDish(w http.ResponseWriter, r *http.Request) {
 	err = s.DB.UpdateDish(
 		context.Background(),
 		id,
-		bson.M{"$set": bson.M{"bringer_id": req.FamilyID}},
+		bson.M{"$set": bson.M{"bringer_id": req.FamilyMemberID}},
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -120,10 +120,10 @@ func (s *Server) PledgeDish(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch Family Name for broadcast
-	family, err := s.DB.GetFamilyByID(context.Background(), req.FamilyID)
+	familyMember, err := s.DB.GetFamilyMemberByID(context.Background(), req.FamilyMemberID)
 	familyName := "Someone"
 	if err == nil {
-		familyName = family.Name
+		familyName = familyMember.Name
 	}
 
 	// Broadcast update
@@ -132,7 +132,7 @@ func (s *Server) PledgeDish(w http.ResponseWriter, r *http.Request) {
 		"data": map[string]interface{}{
 			"dish_id":      id,
 			"event_id":     dish.EventID,
-			"bringer_id":   req.FamilyID,
+			"bringer_id":   req.FamilyMemberID,
 			"bringer_name": familyName,
 			"dish_name":    dish.Name,
 		},
