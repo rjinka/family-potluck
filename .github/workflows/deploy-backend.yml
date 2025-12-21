@@ -13,6 +13,7 @@ env:
   REGION: us-central1
   REPO_NAME: family-potluck-repo
   SERVICE_NAME: family-potluck-backend
+  APP_ENV: production
 
 jobs:
   deploy:
@@ -59,3 +60,4 @@ jobs:
             JWT_SECRET=${{ secrets.JWT_SECRET }}
             GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
             ALLOWED_ORIGINS=${{ secrets.ALLOWED_ORIGINS }}
+            APP_ENV=${{ env.APP_ENV }}
