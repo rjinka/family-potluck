@@ -77,6 +77,10 @@ func TestGetEvents(t *testing.T) {
 		return events, nil
 	}
 
+	mockDB.GetFamilyMemberByIDFunc = func(ctx context.Context, id primitive.ObjectID) (*models.FamilyMember, error) {
+		return &models.FamilyMember{Name: "Test Host"}, nil
+	}
+
 	req, _ := http.NewRequest("GET", "/events?group_id="+groupID.Hex(), nil)
 	rr := httptest.NewRecorder()
 
@@ -108,6 +112,10 @@ func TestDeleteEvent_Unauthorized(t *testing.T) {
 
 	mockDB.GetGroupFunc = func(ctx context.Context, id primitive.ObjectID) (*models.Group, error) {
 		return &models.Group{ID: groupID, AdminID: adminID}, nil
+	}
+
+	mockDB.GetFamilyMemberByIDFunc = func(ctx context.Context, id primitive.ObjectID) (*models.FamilyMember, error) {
+		return &models.FamilyMember{ID: id}, nil
 	}
 
 	req, _ := http.NewRequest("DELETE", "/events/"+eventID.Hex()+"?user_id="+otherUserID.Hex(), nil)
