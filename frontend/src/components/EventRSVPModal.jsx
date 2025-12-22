@@ -99,7 +99,7 @@ const EventRSVPModal = ({ isOpen, onClose, rsvps, groupMembers, hostId }) => {
                                 <span className="font-bold text-gray-600">No Response</span>
                             </div>
                             <div className="space-y-2">
-                                {groupMembers
+                                {Array.isArray(groupMembers.families) && groupMembers.families
                                     .filter(m => !rsvps.some(r => r.family_id === m.id) && m.id !== hostId)
                                     .map(m => (
                                         <div key={m.id} className="text-sm text-gray-500 font-medium">
@@ -107,7 +107,7 @@ const EventRSVPModal = ({ isOpen, onClose, rsvps, groupMembers, hostId }) => {
                                         </div>
                                     ))
                                 }
-                                {groupMembers.filter(m => !rsvps.some(r => r.family_id === m.id) && m.id !== hostId).length === 0 && (
+                                {Array.isArray(groupMembers.families) && groupMembers.families.filter(m => !rsvps.some(r => r.family_id === m.id) && m.id !== hostId).length === 0 && (
                                     <p className="text-xs text-gray-400 italic">Everyone has responded!</p>
                                 )}
                             </div>

@@ -19,12 +19,35 @@ type FamilyMember struct {
 	HouseholdID        *primitive.ObjectID  `json:"household_id,omitempty" bson:"household_id,omitempty"`
 }
 
+// SafeFamilyMember is a version of FamilyMember with sensitive fields omitted for API responses
+type SafeFamilyMember struct {
+	ID                 primitive.ObjectID   `json:"id"`
+	Name               string               `json:"name"`
+	Email              string               `json:"email"`
+	Picture            string               `json:"picture"`
+	DietaryPreferences []string             `json:"dietary_preferences"`
+	GroupIDs           []primitive.ObjectID `json:"group_ids"`
+	HouseholdID        *primitive.ObjectID  `json:"household_id,omitempty"`
+}
+
+func (f *FamilyMember) ToSafe() SafeFamilyMember {
+	return SafeFamilyMember{
+		ID:                 f.ID,
+		Name:               f.Name,
+		Email:              f.Email,
+		Picture:            f.Picture,
+		DietaryPreferences: f.DietaryPreferences,
+		GroupIDs:           f.GroupIDs,
+		HouseholdID:        f.HouseholdID,
+	}
+}
+
 type Household struct {
 	ID        primitive.ObjectID   `json:"id" bson:"_id,omitempty"`
 	Name      string               `json:"name" bson:"name"` // e.g., "The Smiths"
 	Address   string               `json:"address" bson:"address"`
 	MemberIDs []primitive.ObjectID `json:"member_ids" bson:"member_ids"` // IDs of Family members
-	Members   []FamilyMember       `json:"members,omitempty" bson:"-"`   // Full member details for response
+	Members   []SafeFamilyMember   `json:"members,omitempty" bson:"-"`   // Full member details for response
 }
 
 type Group struct {
@@ -35,19 +58,21 @@ type Group struct {
 }
 
 type Event struct {
-	ID            primitive.ObjectID   `json:"id" bson:"_id,omitempty"`
-	GroupID       primitive.ObjectID   `json:"group_id" bson:"group_id"`
-	Date          time.Time            `json:"date" bson:"date"`
-	Type          string               `json:"type" bson:"type"` // Dinner, Lunch, Coffee
-	HostID        primitive.ObjectID   `json:"host_id" bson:"host_id"`
-	HostName      string               `json:"host_name,omitempty" bson:"-"`
-	Location      string               `json:"location" bson:"location"`
-	Description   string               `json:"description" bson:"description"`
-	Recurrence    string               `json:"recurrence,omitempty" bson:"recurrence,omitempty"`       // Weekly, Bi-Weekly
-	RecurrenceID  primitive.ObjectID   `json:"recurrence_id,omitempty" bson:"recurrence_id,omitempty"` // ID linking the series
-	GuestIDs      []primitive.ObjectID `json:"guest_ids,omitempty" bson:"guest_ids,omitempty"`
-	GuestJoinCode string               `json:"guest_join_code" bson:"guest_join_code"`
-	Status        string               `json:"status" bson:"status"` // scheduled, completed, cancelled
+	ID              primitive.ObjectID   `json:"id" bson:"_id,omitempty"`
+	GroupID         primitive.ObjectID   `json:"group_id" bson:"group_id"`
+	Name            string               `json:"name" bson:"name"`
+	Date            time.Time            `json:"date" bson:"date"`
+	Type            string               `json:"type" bson:"type"` // Dinner, Lunch, Coffee
+	HostID          primitive.ObjectID   `json:"host_id" bson:"host_id"`
+	HostName        string               `json:"host_name,omitempty" bson:"-"`
+	HostHouseholdID *primitive.ObjectID  `json:"host_household_id,omitempty" bson:"-"`
+	Location        string               `json:"location" bson:"location"`
+	Description     string               `json:"description" bson:"description"`
+	Recurrence      string               `json:"recurrence,omitempty" bson:"recurrence,omitempty"`       // Weekly, Bi-Weekly
+	RecurrenceID    primitive.ObjectID   `json:"recurrence_id,omitempty" bson:"recurrence_id,omitempty"` // ID linking the series
+	GuestIDs        []primitive.ObjectID `json:"guest_ids,omitempty" bson:"guest_ids,omitempty"`
+	GuestJoinCode   string               `json:"guest_join_code" bson:"guest_join_code"`
+	Status          string               `json:"status" bson:"status"` // scheduled, completed, cancelled
 }
 
 type RSVP struct {

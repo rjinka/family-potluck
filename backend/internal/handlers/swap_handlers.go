@@ -93,12 +93,48 @@ func (s *Server) UpdateSwapRequest(w http.ResponseWriter, r *http.Request) {
 				newHostID = *req.TargetFamilyMemberID
 			}
 
+			// Fetch current event to check location
+			event, err := s.DB.GetEvent(context.Background(), req.EventID)
+			if err != nil {
+				http.Error(w, "Event not found", http.StatusNotFound)
+				return
+			}
+
 			eventUpdateDoc := bson.M{"host_id": newHostID}
+
+			// Get old host address for comparison
+			oldHost, err := s.DB.GetFamilyMemberByID(context.Background(), event.HostID)
+			var oldAddress string
+			if err == nil && oldHost.HouseholdID != nil {
+				oldHousehold, err := s.DB.GetHousehold(context.Background(), *oldHost.HouseholdID)
+				if err == nil {
+					oldAddress = oldHousehold.Address
+				}
+			}
+
+			// Get new host address
+			newHost, err := s.DB.GetFamilyMemberByID(context.Background(), newHostID)
+			var newAddress string
+			if err == nil && newHost.HouseholdID != nil {
+				newHousehold, err := s.DB.GetHousehold(context.Background(), *newHost.HouseholdID)
+				if err == nil && newHousehold.Address != "" {
+					newAddress = newHousehold.Address
+				}
+			}
+
+			// Initial automatic update based on current state
+			if (event.Location == "" || event.Location == oldAddress) && newAddress != "" {
+				eventUpdateDoc["location"] = newAddress
+			}
+
 			if update.EventUpdates != nil {
 				if !update.EventUpdates.Date.IsZero() {
 					eventUpdateDoc["date"] = update.EventUpdates.Date
 				}
-				if update.EventUpdates.Location != "" {
+				// If user provided a location that is NOT the old address and NOT empty, use it.
+				// If they provided the old address (likely from pre-fill), and we have a new address,
+				// we already set it in eventUpdateDoc["location"] above.
+				if update.EventUpdates.Location != "" && update.EventUpdates.Location != oldAddress {
 					eventUpdateDoc["location"] = update.EventUpdates.Location
 				}
 			}

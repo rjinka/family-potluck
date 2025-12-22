@@ -39,6 +39,10 @@ export const UIProvider = ({ children }) => {
         setNotification(prev => ({ ...prev, isVisible: false }));
     }, []);
 
+    const closeModal = useCallback(() => {
+        setModal(prev => ({ ...prev, isOpen: false }));
+    }, []);
+
     const confirm = useCallback(({ title, message, confirmText, cancelText, isDestructive, onConfirm }) => {
         setModal({
             isOpen: true,
@@ -52,11 +56,7 @@ export const UIProvider = ({ children }) => {
                 closeModal();
             }
         });
-    }, []);
-
-    const closeModal = useCallback(() => {
-        setModal(prev => ({ ...prev, isOpen: false }));
-    }, []);
+    }, [closeModal]);
 
     return (
         <UIContext.Provider value={{ showToast, confirm }}>

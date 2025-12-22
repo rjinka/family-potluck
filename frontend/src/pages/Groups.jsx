@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useUI } from '../context/UIContext';
 import api from '../api/axios';
@@ -7,7 +7,7 @@ import { Plus, Trash2, Share2, Copy, LogOut, Users } from 'lucide-react';
 import ManageHouseholdModal from '../components/ManageHouseholdModal';
 
 const Groups = () => {
-    const { user, login, refreshUser } = useAuth();
+    const { user, refreshUser } = useAuth();
     const { showToast, confirm } = useUI();
     const navigate = useNavigate();
     const [groups, setGroups] = useState([]);
@@ -19,11 +19,7 @@ const Groups = () => {
     const [manageHouseholdModalOpen, setManageHouseholdModalOpen] = useState(false);
     const [manageHouseholdId, setManageHouseholdId] = useState(null);
 
-    useEffect(() => {
-        fetchGroups();
-    }, [user, navigate]);
-
-    const fetchGroups = async () => {
+    const fetchGroups = useCallback(async () => {
         try {
             const response = await api.get('/groups');
             // Only show groups the user is a member of
@@ -34,13 +30,17 @@ const Groups = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [user?.group_ids]);
+
+    useEffect(() => {
+        fetchGroups();
+    }, [user, navigate, fetchGroups]);
 
     const createGroup = async (e) => {
         e.preventDefault();
         if (!newGroupName) return;
         try {
-            const response = await api.post('/groups', {
+            await api.post('/groups', {
                 name: newGroupName,
                 admin_id: user.id
             });

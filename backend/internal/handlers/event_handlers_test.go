@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -34,6 +35,7 @@ func TestCreateEvent(t *testing.T) {
 	eventReq := models.Event{
 		GroupID:     groupID,
 		HostID:      hostID,
+		Name:        "Test Event Name",
 		Description: "Test Event",
 		Date:        time.Now().Add(24 * time.Hour),
 	}
@@ -50,6 +52,9 @@ func TestCreateEvent(t *testing.T) {
 
 	var resp models.Event
 	json.NewDecoder(rr.Body).Decode(&resp)
+	if resp.Name != "Test Event Name" {
+		t.Errorf("expected name Test Event Name, got %v", resp.Name)
+	}
 	if resp.Description != "Test Event" {
 		t.Errorf("expected description Test Event, got %v", resp.Description)
 	}
@@ -159,5 +164,71 @@ func TestCreateEvent_WithHouseholdAddress(t *testing.T) {
 	json.NewDecoder(rr.Body).Decode(&resp)
 	if resp.Location != expectedAddress {
 		t.Errorf("expected location %v, got %v", expectedAddress, resp.Location)
+	}
+}
+
+func TestFinishEvent_Recurrence(t *testing.T) {
+	mockDB := &database.MockService{}
+	hub := websocket.NewHub()
+	go hub.Run()
+	server := NewServer(mockDB, hub)
+
+	eventID := primitive.NewObjectID()
+	groupID := primitive.NewObjectID()
+	hostID := primitive.NewObjectID()
+	now := time.Now()
+
+	tests := []struct {
+		recurrence string
+		expected   time.Time
+	}{
+		{"Daily", now.AddDate(0, 0, 1)},
+		{"Weekly", now.AddDate(0, 0, 7)},
+		{"Bi-Weekly", now.AddDate(0, 0, 14)},
+		{"Monthly", now.AddDate(0, 1, 0)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.recurrence, func(t *testing.T) {
+			event := &models.Event{
+				ID:         eventID,
+				GroupID:    groupID,
+				HostID:     hostID,
+				Date:       now,
+				Recurrence: tt.recurrence,
+			}
+
+			mockDB.GetEventFunc = func(ctx context.Context, id primitive.ObjectID) (*models.Event, error) {
+				return event, nil
+			}
+			mockDB.GetGroupFunc = func(ctx context.Context, id primitive.ObjectID) (*models.Group, error) {
+				return &models.Group{ID: groupID, AdminID: hostID}, nil
+			}
+			mockDB.GetFamilyMemberByIDFunc = func(ctx context.Context, id primitive.ObjectID) (*models.FamilyMember, error) {
+				return &models.FamilyMember{ID: id}, nil
+			}
+			mockDB.GetFamilyMembersByGroupIDFunc = func(ctx context.Context, id primitive.ObjectID) ([]models.FamilyMember, error) {
+				return []models.FamilyMember{{ID: hostID}}, nil
+			}
+			mockDB.CreateEventFunc = func(ctx context.Context, e *models.Event) error {
+				if !e.Date.Equal(tt.expected) {
+					t.Errorf("expected date %v, got %v", tt.expected, e.Date)
+				}
+				return nil
+			}
+			mockDB.UpdateEventFunc = func(ctx context.Context, id primitive.ObjectID, update bson.M) error {
+				return nil
+			}
+
+			req, _ := http.NewRequest("POST", "/events/"+eventID.Hex()+"/finish?admin_id="+hostID.Hex(), nil)
+			req.SetPathValue("id", eventID.Hex())
+			rr := httptest.NewRecorder()
+
+			server.FinishEvent(rr, req)
+
+			if status := rr.Code; status != http.StatusOK {
+				t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+			}
+		})
 	}
 }

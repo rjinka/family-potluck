@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useWebSocket } from '../context/WebSocketContext';
@@ -7,7 +7,7 @@ import api from '../api/axios';
 import {
     Calendar, MapPin, Users, Plus, ChevronRight,
     LogOut, Settings, Bell, Search, Filter,
-    ChefHat, Clock, ArrowRight, SkipForward, CheckCircle, XCircle
+    ChefHat, Clock, ArrowRight, SkipForward, CheckCircle, XCircle, RefreshCw
 } from 'lucide-react';
 
 const Dashboard = () => {
@@ -16,14 +16,14 @@ const Dashboard = () => {
     const { showToast, confirm } = useUI();
     const navigate = useNavigate();
     const location = useLocation();
-    const [groups, setGroups] = useState([]);
     const [selectedGroupId, setSelectedGroupId] = useState(location.state?.groupId || null);
     const [guestEvents, setGuestEvents] = useState([]);
     const [userGroups, setUserGroups] = useState([]);
     const [events, setEvents] = useState([]);
-    const [loading, setLoading] = useState(true);
     const [showCreateModal, setShowCreateModal] = useState(false);
+    const [isCustomType, setIsCustomType] = useState(false);
     const [newEvent, setNewEvent] = useState({
+        name: '',
         type: 'Potluck',
         date: '',
         location: '',
@@ -31,26 +31,36 @@ const Dashboard = () => {
         recurrence: ''
     });
 
-    useEffect(() => {
-        if (lastMessage) {
-            if (lastMessage.type === 'event_created' || lastMessage.type === 'event_updated' || lastMessage.type === 'event_deleted') {
-                // Refresh events if the event belongs to the current group
-                if (selectedGroupId && lastMessage.data.group_id === selectedGroupId) {
-                    fetchEvents();
-                }
-
-                // Refresh guest events if the updated/deleted event is in our guest list
-                // For event_deleted, data is { event_id, group_id }
-                // For event_updated, data is the event object (so data.id)
-                const messageEventId = lastMessage.data.event_id || lastMessage.data.id;
-                const isGuestEvent = guestEvents.some(e => e.id === messageEventId);
-
-                if (isGuestEvent) {
-                    fetchGuestEvents();
-                }
-            }
+    const fetchGuestEvents = useCallback(async () => {
+        try {
+            const response = await api.get(`/events/user?user_id=${user.id}`);
+            const sortedEvents = (response.data || []).sort((a, b) => new Date(a.date) - new Date(b.date));
+            setGuestEvents(sortedEvents);
+        } catch (error) {
+            console.error("Failed to fetch guest events", error);
         }
-    }, [lastMessage, selectedGroupId, guestEvents]);
+    }, [user.id]);
+
+    const fetchUserGroups = useCallback(async () => {
+        try {
+            const response = await api.get('/groups');
+            // Filter groups that user is part of
+            const myGroups = response.data.filter(g => user.group_ids.includes(g.id));
+            setUserGroups(myGroups);
+        } catch (error) {
+            console.error("Failed to fetch groups", error);
+        }
+    }, [user.group_ids]);
+
+    const fetchEvents = useCallback(async () => {
+        try {
+            const response = await api.get(`/events?group_id=${selectedGroupId}`);
+            const sortedEvents = (response.data || []).sort((a, b) => new Date(a.date) - new Date(b.date));
+            setEvents(sortedEvents);
+        } catch (error) {
+            console.error("Failed to fetch events", error);
+        }
+    }, [selectedGroupId]);
 
     useEffect(() => {
         if (!user) return;
@@ -65,44 +75,32 @@ const Dashboard = () => {
 
         // Always fetch guest events
         fetchGuestEvents();
-    }, [user, navigate]);
-
-    const fetchGuestEvents = async () => {
-        try {
-            const response = await api.get(`/events/user?user_id=${user.id}`);
-            const sortedEvents = (response.data || []).sort((a, b) => new Date(a.date) - new Date(b.date));
-            setGuestEvents(sortedEvents);
-        } catch (error) {
-            console.error("Failed to fetch guest events", error);
-        }
-    };
+    }, [user, navigate, fetchUserGroups, fetchGuestEvents, selectedGroupId]);
 
     useEffect(() => {
         if (selectedGroupId) {
             fetchEvents();
         }
-    }, [selectedGroupId]);
+    }, [selectedGroupId, fetchEvents]);
 
-    const fetchUserGroups = async () => {
-        try {
-            const response = await api.get('/groups');
-            // Filter groups that user is part of
-            const myGroups = response.data.filter(g => user.group_ids.includes(g.id));
-            setUserGroups(myGroups);
-        } catch (error) {
-            console.error("Failed to fetch groups", error);
-        }
-    };
+    useEffect(() => {
+        if (lastMessage) {
+            if (lastMessage.type === 'event_created' || lastMessage.type === 'event_updated' || lastMessage.type === 'event_deleted') {
+                // Refresh events if the event belongs to the current group
+                if (selectedGroupId && lastMessage.data.group_id === selectedGroupId) {
+                    fetchEvents();
+                }
 
-    const fetchEvents = async () => {
-        try {
-            const response = await api.get(`/events?group_id=${selectedGroupId}`);
-            const sortedEvents = (response.data || []).sort((a, b) => new Date(a.date) - new Date(b.date));
-            setEvents(sortedEvents);
-        } catch (error) {
-            console.error("Failed to fetch events", error);
+                // Refresh guest events if the updated/deleted event is in our guest list
+                const messageEventId = lastMessage.data.event_id || lastMessage.data.id;
+                const isGuestEvent = guestEvents.some(e => e.id === messageEventId);
+
+                if (isGuestEvent) {
+                    fetchGuestEvents();
+                }
+            }
         }
-    };
+    }, [lastMessage, selectedGroupId, guestEvents, fetchEvents, fetchGuestEvents]);
 
     const handleCreateEvent = async (e) => {
         e.preventDefault();
@@ -115,7 +113,8 @@ const Dashboard = () => {
             });
             setShowCreateModal(false);
             fetchEvents();
-            setNewEvent({ date: '', type: 'Dinner', location: '', description: '', recurrence: '' });
+            setNewEvent({ name: '', date: '', type: 'Dinner', location: '', description: '', recurrence: '' });
+            setIsCustomType(false);
             showToast("Event created successfully!");
         } catch (error) {
             console.error("Failed to create event", error);
@@ -268,7 +267,7 @@ const Dashboard = () => {
                                                     {event.type}
                                                 </span>
                                             </div>
-                                            <h3 className="text-lg font-bold text-gray-800 mb-1 group-hover:text-orange-600 transition">{new Date(event.date).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</h3>
+                                            <h3 className="text-lg font-bold text-gray-800 mb-1 group-hover:text-orange-600 transition">{event.name || new Date(event.date).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</h3>
                                             <div className="text-gray-500 text-sm flex items-center gap-4 mb-4">
                                                 <span className="flex items-center gap-1">
                                                     <Clock className="w-4 h-4" />
@@ -304,7 +303,10 @@ const Dashboard = () => {
                         <div className="flex justify-between items-center mb-6">
                             <h2 className="text-2xl font-bold text-gray-800">Group Events</h2>
                             <button
-                                onClick={() => setShowCreateModal(!showCreateModal)}
+                                onClick={() => {
+                                    setShowCreateModal(!showCreateModal);
+                                    setIsCustomType(false);
+                                }}
                                 className="bg-orange-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-orange-700 transition shadow-sm"
                             >
                                 <Plus className="w-4 h-4" />
@@ -317,6 +319,17 @@ const Dashboard = () => {
                             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8 animate-in fade-in slide-in-from-top-4">
                                 <h3 className="text-lg font-semibold mb-4">Plan a New Gathering</h3>
                                 <form onSubmit={handleCreateEvent} className="grid gap-4 md:grid-cols-2">
+                                    <div className="md:col-span-2">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Event Name</label>
+                                        <input
+                                            type="text"
+                                            required
+                                            placeholder="e.g. Christmas Dinner 2025"
+                                            className="w-full p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
+                                            value={newEvent.name}
+                                            onChange={e => setNewEvent({ ...newEvent, name: e.target.value })}
+                                        />
+                                    </div>
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Date & Time</label>
                                         <input
@@ -331,51 +344,87 @@ const Dashboard = () => {
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
                                         <select
                                             className="w-full p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
-                                            value={newEvent.type}
-                                            onChange={e => setNewEvent({ ...newEvent, type: e.target.value })}
+                                            value={isCustomType ? 'Other' : newEvent.type}
+                                            onChange={e => {
+                                                if (e.target.value === 'Other') {
+                                                    setIsCustomType(true);
+                                                    setNewEvent({ ...newEvent, type: '' });
+                                                } else {
+                                                    setIsCustomType(false);
+                                                    setNewEvent({ ...newEvent, type: e.target.value });
+                                                }
+                                            }}
                                         >
                                             <option>Dinner</option>
                                             <option>Lunch</option>
                                             <option>Coffee Meet</option>
                                             <option>Picnic</option>
+                                            <option>Other</option>
                                         </select>
+                                        {isCustomType && (
+                                            <input
+                                                type="text"
+                                                placeholder="Enter custom type"
+                                                className="w-full mt-2 p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
+                                                value={newEvent.type}
+                                                onChange={e => setNewEvent({ ...newEvent, type: e.target.value })}
+                                                required
+                                            />
+                                        )}
                                     </div>
 
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Recurrence</label>
-                                        <select
-                                            className="w-full p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
-                                            value={newEvent.recurrence}
-                                            onChange={e => setNewEvent({ ...newEvent, recurrence: e.target.value })}
-                                        >
-                                            <option value="">None (One-time)</option>
-                                            <option value="Weekly">Weekly</option>
-                                            <option value="Bi-Weekly">Bi-Weekly</option>
-                                        </select>
+                                    <div className="flex items-center gap-2 mt-6">
+                                        <input
+                                            type="checkbox"
+                                            id="isRecurring"
+                                            className="w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
+                                            checked={!!newEvent.recurrence}
+                                            onChange={e => setNewEvent({ ...newEvent, recurrence: e.target.checked ? 'Weekly' : '' })}
+                                        />
+                                        <label htmlFor="isRecurring" className="text-sm font-medium text-gray-700">Recurring Event</label>
                                     </div>
+
+                                    {newEvent.recurrence && (
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
+                                            <select
+                                                className="w-full p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
+                                                value={newEvent.recurrence}
+                                                onChange={e => setNewEvent({ ...newEvent, recurrence: e.target.value })}
+                                            >
+                                                <option value="Daily">Daily</option>
+                                                <option value="Weekly">Weekly</option>
+                                                <option value="Bi-Weekly">Bi-Weekly</option>
+                                                <option value="Monthly">Monthly</option>
+                                            </select>
+                                        </div>
+                                    )}
 
                                     <div className="md:col-span-2">
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Location (Leave empty to use your household address)</label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Location (optional - defaults to host address)</label>
                                         <input
                                             type="text"
-                                            placeholder="e.g. 123 Main St or Central Park"
+                                            placeholder="Leave empty to use host's household address"
                                             className="w-full p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
                                             value={newEvent.location}
                                             onChange={e => setNewEvent({ ...newEvent, location: e.target.value })}
                                         />
                                     </div>
+
                                     <div className="md:col-span-2">
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                                         <textarea
-                                            placeholder="Any special notes? Theme?"
                                             className="w-full p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
-                                            rows="3"
+                                            rows="2"
                                             value={newEvent.description}
                                             onChange={e => setNewEvent({ ...newEvent, description: e.target.value })}
-                                        />
+                                        ></textarea>
                                     </div>
-                                    <div className="md:col-span-2 flex justify-end">
-                                        <button type="submit" className="bg-orange-600 text-white px-6 py-2 rounded-lg hover:bg-orange-700">
+                                    <div className="md:col-span-2">
+                                        <button
+                                            type="submit"
+                                            className="w-full bg-orange-600 text-white py-2 rounded-lg font-bold hover:bg-orange-700 transition shadow-md"
+                                        >
                                             Create Event
                                         </button>
                                     </div>
@@ -384,95 +433,100 @@ const Dashboard = () => {
                         )}
 
                         {/* Events List */}
-                        <div className="space-y-4">
-                            {events.length === 0 ? (
-                                <div className="text-center py-12 bg-white rounded-xl border border-gray-100 border-dashed">
-                                    <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                                    <p className="text-gray-500">No upcoming events found.</p>
-                                    <button
-                                        onClick={() => setShowCreateModal(true)}
-                                        className="text-orange-600 font-medium hover:underline mt-2"
-                                    >
-                                        Plan one now
-                                    </button>
-                                </div>
-                            ) : (
+                        <div className="grid gap-6 md:grid-cols-2">
+                            {events.length > 0 ? (
                                 events.map(event => (
-                                    <div key={event.id} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition group">
-                                        <div className="flex justify-between items-start">
-                                            <div className="flex-1">
-                                                <div className="flex items-center gap-2 mb-2">
-                                                    <span className="bg-orange-100 text-orange-700 text-xs font-bold px-2 py-1 rounded-full uppercase tracking-wide">
-                                                        {event.type}
-                                                    </span>
-                                                    {event.recurrence && (
-                                                        <span className="bg-blue-50 text-blue-600 text-xs px-2 py-1 rounded-full flex items-center gap-1">
-                                                            <Clock className="w-3 h-3" />
-                                                            {event.recurrence}
-                                                        </span>
-                                                    )}
+                                    <div key={event.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition group">
+                                        <div className="p-6">
+                                            <div className="flex justify-between items-start mb-4">
+                                                <div className="bg-orange-50 text-orange-700 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+                                                    {event.type}
                                                 </div>
-                                                <h3 className="text-lg font-bold text-gray-800 mb-1 group-hover:text-orange-600 transition">{new Date(event.date).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</h3>
-                                                <div className="text-gray-500 text-sm flex items-center gap-4 mb-4">
-                                                    <span className="flex items-center gap-1">
-                                                        <Clock className="w-4 h-4" />
-                                                        {new Date(event.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                    </span>
-                                                    <span className="flex items-center gap-1">
-                                                        <MapPin className="w-4 h-4" />
-                                                        {event.location}
-                                                    </span>
-                                                </div>
-                                                {event.description && (
-                                                    <p className="text-gray-600 text-sm mb-4 line-clamp-2">{event.description}</p>
+                                                {event.recurrence && (
+                                                    <div className="flex items-center gap-1 text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
+                                                        <RefreshCw className="w-3 h-3" />
+                                                        {event.recurrence}
+                                                    </div>
                                                 )}
                                             </div>
-                                            <div className="flex flex-col gap-2">
+
+                                            <h3 className="text-xl font-bold text-gray-800 mb-2 group-hover:text-orange-600 transition">
+                                                {event.name || new Date(event.date).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+                                            </h3>
+
+                                            <div className="space-y-2 mb-6">
+                                                <div className="flex items-center gap-2 text-gray-500 text-sm">
+                                                    <Clock className="w-4 h-4 text-orange-400" />
+                                                    {new Date(event.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                </div>
+                                                <div className="flex items-center gap-2 text-gray-500 text-sm">
+                                                    <MapPin className="w-4 h-4 text-orange-400" />
+                                                    {event.location}
+                                                </div>
+                                                <div className="flex items-center gap-2 text-gray-500 text-sm">
+                                                    <Users className="w-4 h-4 text-orange-400" />
+                                                    Hosted by {event.host_name}
+                                                </div>
+                                            </div>
+
+                                            <div className="flex flex-col gap-3">
                                                 <button
                                                     onClick={() => navigate(`/events/${event.id}`)}
-                                                    className="bg-gray-50 text-gray-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-50 hover:text-orange-600 transition flex items-center gap-2"
+                                                    className="w-full bg-gray-50 text-gray-700 py-2 rounded-xl font-semibold hover:bg-orange-50 hover:text-orange-600 transition flex items-center justify-center gap-2"
                                                 >
-                                                    Details & RSVP
-                                                    <ArrowRight className="w-4 h-4" />
+                                                    View Details
+                                                    <ChevronRight className="w-4 h-4" />
                                                 </button>
 
-                                                {/* Admin Controls for Recurring Events */}
                                                 {/* Admin/Host Controls */}
-                                                {(userGroups.find(g => g.id === selectedGroupId)?.admin_id === user?.id || event.host_id === user?.id) && (
+                                                {(userGroups.find(g => g.id === selectedGroupId)?.admin_id === user?.id || event.host_id === user?.id || (event.host_household_id && event.host_household_id === user?.household_id)) && (
                                                     <div className="flex gap-2 justify-end">
                                                         {event.recurrence && (
                                                             <button
-                                                                onClick={() => handleSkipEvent(event.id)}
-                                                                className="text-xs text-gray-400 hover:text-orange-600 flex items-center gap-1"
-                                                                title="Skip to next occurrence"
+                                                                onClick={() => handleFinishEvent(event.id)}
+                                                                className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition"
+                                                                title="Complete Event"
                                                             >
-                                                                <SkipForward className="w-3 h-3" /> Skip
+                                                                <CheckCircle className="w-5 h-5" />
                                                             </button>
                                                         )}
-
-                                                        <button
-                                                            onClick={() => event.recurrence ? handleFinishEvent(event.id) : handleCompleteNonRecurring(event.id)}
-                                                            className="text-xs text-gray-400 hover:text-green-600 flex items-center gap-1"
-                                                            title={event.recurrence ? "Mark as complete and create next occurrence" : "Mark as complete"}
-                                                        >
-                                                            <CheckCircle className="w-3 h-3" /> Complete
-                                                        </button>
-
-                                                        {(!event.recurrence || userGroups.find(g => g.id === selectedGroupId)?.admin_id === user?.id) && (
+                                                        {event.recurrence && (
                                                             <button
-                                                                onClick={() => handleDeleteEvent(event.id)}
-                                                                className="text-xs text-gray-400 hover:text-red-600 flex items-center gap-1"
-                                                                title="Cancel Event"
+                                                                onClick={() => handleSkipEvent(event.id)}
+                                                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                                                                title="Skip Event"
                                                             >
-                                                                <XCircle className="w-3 h-3" /> Cancel
+                                                                <SkipForward className="w-5 h-5" />
                                                             </button>
                                                         )}
+                                                        {!event.recurrence && (
+                                                            <button
+                                                                onClick={() => handleCompleteNonRecurring(event.id)}
+                                                                className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition"
+                                                                title="Complete Event"
+                                                            >
+                                                                <CheckCircle className="w-5 h-5" />
+                                                            </button>
+                                                        )}
+                                                        <button
+                                                            onClick={() => handleDeleteEvent(event.id)}
+                                                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
+                                                            title="Cancel Event"
+                                                        >
+                                                            <XCircle className="w-5 h-5" />
+                                                        </button>
                                                     </div>
                                                 )}
                                             </div>
                                         </div>
                                     </div>
                                 ))
+                            ) : (
+                                <div className="md:col-span-2 bg-white p-12 rounded-2xl border border-dashed border-gray-200 text-center">
+                                    <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                                    <h3 className="text-lg font-medium text-gray-900 mb-1">No upcoming events</h3>
+                                    <p className="text-gray-500">Plan a new gathering to get started!</p>
+                                </div>
                             )}
                         </div>
                     </>

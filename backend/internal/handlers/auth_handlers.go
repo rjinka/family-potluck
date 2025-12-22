@@ -119,7 +119,7 @@ func (s *Server) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 	setTokenCookie(w, token)
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(familyMember)
+	json.NewEncoder(w).Encode(familyMember.ToSafe())
 }
 
 func (s *Server) Logout(w http.ResponseWriter, r *http.Request) {
@@ -170,5 +170,5 @@ func (s *Server) GetMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(familyMember)
+	json.NewEncoder(w).Encode(familyMember.ToSafe())
 }

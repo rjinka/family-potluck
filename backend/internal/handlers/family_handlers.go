@@ -28,7 +28,7 @@ func (s *Server) GetFamilyMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(familyMember)
+	json.NewEncoder(w).Encode(familyMember.ToSafe())
 }
 
 func (s *Server) UpdateFamilyMember(w http.ResponseWriter, r *http.Request) {
