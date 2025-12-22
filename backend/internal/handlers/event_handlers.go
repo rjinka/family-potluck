@@ -31,10 +31,13 @@ func (s *Server) CreateEvent(w http.ResponseWriter, r *http.Request) {
 
 	// Check if host is in a household and set address if needed
 	hostFamilyMember, err := s.DB.GetFamilyMemberByID(context.Background(), event.HostID)
-	if err == nil && hostFamilyMember.HouseholdID != nil {
-		household, err := s.DB.GetHousehold(context.Background(), *hostFamilyMember.HouseholdID)
-		if err == nil && household.Address != "" && event.Location == "" {
-			event.Location = household.Address
+	if err == nil {
+		event.HostHouseholdID = hostFamilyMember.HouseholdID
+		if hostFamilyMember.HouseholdID != nil {
+			household, err := s.DB.GetHousehold(context.Background(), *hostFamilyMember.HouseholdID)
+			if err == nil && household.Address != "" && event.Location == "" {
+				event.Location = household.Address
+			}
 		}
 	}
 
@@ -88,7 +91,19 @@ func (s *Server) FinishEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if group.AdminID != adminID && event.HostID != adminID {
+	isAuthorized := false
+	if group.AdminID == adminID || event.HostID == adminID {
+		isAuthorized = true
+	} else {
+		// Check if adminID belongs to host's household
+		adminMember, errAdmin := s.DB.GetFamilyMemberByID(context.Background(), adminID)
+		hostMember, errHost := s.DB.GetFamilyMemberByID(context.Background(), event.HostID)
+		if errAdmin == nil && errHost == nil && adminMember.HouseholdID != nil && hostMember.HouseholdID != nil && *adminMember.HouseholdID == *hostMember.HouseholdID {
+			isAuthorized = true
+		}
+	}
+
+	if !isAuthorized {
 		http.Error(w, "Unauthorized", http.StatusForbidden)
 		return
 	}
@@ -100,16 +115,21 @@ func (s *Server) FinishEvent(w http.ResponseWriter, r *http.Request) {
 
 	// Create next event
 	daysToAdd := 0
+	monthsToAdd := 0
 	switch event.Recurrence {
+	case "Daily":
+		daysToAdd = 1
 	case "Weekly":
 		daysToAdd = 7
 	case "Bi-Weekly":
 		daysToAdd = 14
+	case "Monthly":
+		monthsToAdd = 1
 	}
 
 	newEvent := *event
 	newEvent.ID = primitive.NewObjectID()
-	newEvent.Date = event.Date.AddDate(0, 0, daysToAdd)
+	newEvent.Date = event.Date.AddDate(0, monthsToAdd, daysToAdd)
 	newEvent.GuestIDs = []primitive.ObjectID{}  // Clear guest list
 	newEvent.GuestJoinCode = generateJoinCode() // Generate new join code
 
@@ -227,7 +247,19 @@ func (s *Server) SkipEvent(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Group not found", http.StatusInternalServerError)
 		return
 	}
-	if group.AdminID != adminID && event.HostID != adminID {
+	isAuthorized := false
+	if group.AdminID == adminID || event.HostID == adminID {
+		isAuthorized = true
+	} else {
+		// Check if adminID belongs to host's household
+		adminMember, errAdmin := s.DB.GetFamilyMemberByID(context.Background(), adminID)
+		hostMember, errHost := s.DB.GetFamilyMemberByID(context.Background(), event.HostID)
+		if errAdmin == nil && errHost == nil && adminMember.HouseholdID != nil && hostMember.HouseholdID != nil && *adminMember.HouseholdID == *hostMember.HouseholdID {
+			isAuthorized = true
+		}
+	}
+
+	if !isAuthorized {
 		http.Error(w, "Unauthorized", http.StatusForbidden)
 		return
 	}
@@ -288,6 +320,7 @@ func (s *Server) GetEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	events = s.populateEventsHostInfo(context.Background(), events)
 	json.NewEncoder(w).Encode(events)
 }
 
@@ -310,6 +343,7 @@ func (s *Server) GetUserEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	events = s.populateEventsHostInfo(context.Background(), events)
 	json.NewEncoder(w).Encode(events)
 }
 
@@ -376,6 +410,7 @@ func (s *Server) GetEventByCode(w http.ResponseWriter, r *http.Request) {
 	// Fetch Host Name
 	host, err := s.DB.GetFamilyMemberByID(context.Background(), event.HostID)
 	if err == nil {
+		event.HostHouseholdID = host.HouseholdID
 		if host.HouseholdID != nil {
 			household, err := s.DB.GetHousehold(context.Background(), *host.HouseholdID)
 			if err == nil {
@@ -408,6 +443,7 @@ func (s *Server) GetEvent(w http.ResponseWriter, r *http.Request) {
 	// Fetch Host Name
 	host, err := s.DB.GetFamilyMemberByID(context.Background(), event.HostID)
 	if err == nil {
+		event.HostHouseholdID = host.HouseholdID
 		if host.HouseholdID != nil {
 			household, err := s.DB.GetHousehold(context.Background(), *host.HouseholdID)
 			if err == nil {
@@ -459,8 +495,20 @@ func (s *Server) DeleteEvent(w http.ResponseWriter, r *http.Request) {
 	isAuthorized := false
 	if group.AdminID == userID {
 		isAuthorized = true
-	} else if event.HostID == userID {
-		if event.Recurrence == "" {
+	} else {
+		// Check if userID is host or in host's household
+		isHostOrHousehold := false
+		if event.HostID == userID {
+			isHostOrHousehold = true
+		} else {
+			userMember, errUser := s.DB.GetFamilyMemberByID(context.Background(), userID)
+			hostMember, errHost := s.DB.GetFamilyMemberByID(context.Background(), event.HostID)
+			if errUser == nil && errHost == nil && userMember.HouseholdID != nil && hostMember.HouseholdID != nil && *userMember.HouseholdID == *hostMember.HouseholdID {
+				isHostOrHousehold = true
+			}
+		}
+
+		if isHostOrHousehold && event.Recurrence == "" {
 			isAuthorized = true
 		}
 	}
@@ -554,4 +602,24 @@ func (s *Server) GetEventStats(w http.ResponseWriter, r *http.Request) {
 		"total_occurrences": totalOccurrences,
 		"host_counts":       stats,
 	})
+}
+
+func (s *Server) populateEventsHostInfo(ctx context.Context, events []models.Event) []models.Event {
+	for i := range events {
+		host, err := s.DB.GetFamilyMemberByID(ctx, events[i].HostID)
+		if err == nil {
+			events[i].HostHouseholdID = host.HouseholdID
+			if host.HouseholdID != nil {
+				household, err := s.DB.GetHousehold(ctx, *host.HouseholdID)
+				if err == nil {
+					events[i].HostName = household.Name
+				} else {
+					events[i].HostName = host.Name
+				}
+			} else {
+				events[i].HostName = host.Name
+			}
+		}
+	}
+	return events
 }

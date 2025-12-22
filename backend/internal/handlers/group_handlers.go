@@ -277,8 +277,13 @@ func (s *Server) GetGroupMembers(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	safeFamilies := make([]models.SafeFamilyMember, len(familyMembers))
+	for i, f := range familyMembers {
+		safeFamilies[i] = f.ToSafe()
+	}
+
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"families":   familyMembers,
+		"families":   safeFamilies,
 		"households": households,
 	})
 }

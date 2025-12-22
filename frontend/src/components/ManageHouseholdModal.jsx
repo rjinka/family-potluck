@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { X, Plus, Users, Save, Trash2 } from 'lucide-react';
 import api from '../api/axios';
 import { useUI } from '../context/UIContext';
@@ -18,18 +18,7 @@ const ManageHouseholdModal = ({ isOpen, onClose, user, refreshUser, householdId,
 
     const targetHouseholdId = householdId || user?.household_id;
 
-    useEffect(() => {
-        if (isOpen && targetHouseholdId) {
-            fetchHousehold();
-        } else {
-            setHousehold(null);
-            setMembers([]);
-            setCreateName('');
-            setCreateAddress('');
-        }
-    }, [isOpen, targetHouseholdId]);
-
-    const fetchHousehold = async () => {
+    const fetchHousehold = useCallback(async () => {
         setLoading(true);
         try {
             const response = await api.get(`/households/${targetHouseholdId}`);
@@ -53,7 +42,18 @@ const ManageHouseholdModal = ({ isOpen, onClose, user, refreshUser, householdId,
         } finally {
             setLoading(false);
         }
-    };
+    }, [targetHouseholdId, groupId, showToast]);
+
+    useEffect(() => {
+        if (isOpen && targetHouseholdId) {
+            fetchHousehold();
+        } else {
+            setHousehold(null);
+            setMembers([]);
+            setCreateName('');
+            setCreateAddress('');
+        }
+    }, [isOpen, targetHouseholdId, fetchHousehold]);
 
     const handleCreateHousehold = async (e) => {
         e.preventDefault();

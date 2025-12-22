@@ -102,7 +102,7 @@ const JoinEvent = () => {
                 </p>
 
                 <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 mb-8 text-left">
-                    <h2 className="font-bold text-lg text-gray-800 mb-2">{event.type}</h2>
+                    <h2 className="font-bold text-lg text-gray-800 mb-2">{event.name || event.type}</h2>
                     <div className="space-y-2 text-sm text-gray-600">
                         <div className="flex items-center gap-2">
                             <Calendar className="w-4 h-4 text-orange-500" />

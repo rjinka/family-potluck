@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useWebSocket } from '../context/WebSocketContext';
@@ -44,81 +44,9 @@ const EventDetails = () => {
     const [rsvpData, setRsvpData] = useState({ count: 1, kidsCount: 0 });
     const [hostUpdateData, setHostUpdateData] = useState({ date: '', time: '', location: '' });
 
-    useEffect(() => {
-        fetchEventDetails();
-        fetchDishes();
-        fetchSwapRequests();
-        fetchRSVPs();
-        fetchEventStats();
-    }, [eventId]);
 
-    useEffect(() => {
-        if (event?.group_id) {
-            fetchGroupMembers(event.group_id);
-        }
-    }, [event]);
 
-    useEffect(() => {
-        if (lastMessage) {
-            console.log("WebSocket Message Received:", lastMessage);
-            if (lastMessage.type === 'rsvp_updated') {
-                const msgEventId = String(lastMessage.data.event_id);
-                const currentEventId = String(eventId);
-
-                if (msgEventId === currentEventId) {
-                    console.log("Refreshing RSVPs...");
-                    setTimeout(() => fetchRSVPs(), 100);
-
-                    // Show toast
-                    const familyName = lastMessage.data.family_name || "Someone";
-                    const status = lastMessage.data.status;
-                    if (status === 'going') {
-                        toast.success(`${familyName} is going!`);
-                    } else if (status === 'maybe') {
-                        toast.info(`${familyName} might come.`);
-                    } else if (status === 'not_going') {
-                        toast.info(`${familyName} can't make it.`);
-                    }
-                }
-            }
-            if (['dish_added', 'dish_pledged', 'dish_unpledged', 'dish_deleted'].includes(lastMessage.type)) {
-                if (lastMessage.data.event_id === eventId) {
-                    fetchDishes();
-
-                    if (lastMessage.type === 'dish_added') {
-                        toast.success(`New dish added: ${lastMessage.data.name}`);
-                    } else if (lastMessage.type === 'dish_pledged') {
-                        const bringerName = lastMessage.data.bringer_name || "Someone";
-                        const dishName = lastMessage.data.dish_name || "a dish";
-                        toast.success(`${bringerName} is bringing ${dishName}!`);
-                    } else if (lastMessage.type === 'dish_unpledged') {
-                        const dishName = lastMessage.data.dish_name || "A dish";
-                        toast.warning(`${dishName} is available again.`);
-                    }
-                }
-            }
-            if (['swap_created', 'swap_updated'].includes(lastMessage.type)) {
-                if (lastMessage.data.event_id === eventId) {
-                    fetchSwapRequests();
-                    fetchDishes();
-
-                    if (lastMessage.type === 'swap_created') {
-                        toast.info("New swap request received.");
-                    } else if (lastMessage.type === 'swap_updated') {
-                        toast.info(`Swap request ${lastMessage.data.status}.`);
-                    }
-                }
-            }
-            if (lastMessage.type === 'event_updated') {
-                if (lastMessage.data.id === eventId) {
-                    fetchEventDetails();
-                    toast.info("Event details updated.");
-                }
-            }
-        }
-    }, [lastMessage, eventId]);
-
-    const fetchEventDetails = async () => {
+    const fetchEventDetails = useCallback(async () => {
         try {
             const response = await api.get(`/events/${eventId}`);
             setEvent(response.data);
@@ -128,18 +56,18 @@ const EventDetails = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [eventId]);
 
-    const fetchDishes = async () => {
+    const fetchDishes = useCallback(async () => {
         try {
             const response = await api.get(`/dishes?event_id=${eventId}`);
             setDishes(response.data || []);
         } catch (error) {
             console.error("Failed to fetch dishes", error);
         }
-    };
+    }, [eventId]);
 
-    const fetchRSVPs = async () => {
+    const fetchRSVPs = useCallback(async () => {
         try {
             const response = await api.get(`/rsvps?event_id=${eventId}`);
             setRsvps(response.data || []);
@@ -151,25 +79,25 @@ const EventDetails = () => {
         } catch (error) {
             console.error("Failed to fetch RSVPs", error);
         }
-    };
+    }, [eventId, user.id]);
 
-    const fetchEventStats = async () => {
+    const fetchEventStats = useCallback(async () => {
         try {
             const response = await api.get(`/events/stats/${eventId}`);
             setEventStats(response.data);
         } catch (error) {
             console.error("Failed to fetch event stats", error);
         }
-    };
+    }, [eventId]);
 
-    const fetchGroupMembers = async (groupId) => {
+    const fetchGroupMembers = useCallback(async (groupId) => {
         try {
             const response = await api.get(`/groups/members?group_id=${groupId}`);
-            setGroupMembers(response.data || []);
+            setGroupMembers(response.data || { families: [], households: [] });
         } catch (error) {
             console.error("Failed to fetch group members", error);
         }
-    };
+    }, []);
 
 
     const handleRSVP = (status) => {
@@ -202,35 +130,27 @@ const EventDetails = () => {
 
     const [groups, setGroups] = useState([]);
     const [isAdmin, setIsAdmin] = useState(false);
+    const [isHostHousehold, setIsHostHousehold] = useState(false);
 
-    useEffect(() => {
-        fetchGroups();
-    }, [user]);
 
-    useEffect(() => {
-        if (event && groups.length > 0) {
-            const group = groups.find(g => g.id === event.group_id);
-            setIsAdmin(group?.admin_id === user.id);
-        }
-    }, [event, groups, user]);
 
-    const fetchGroups = async () => {
+    const fetchGroups = useCallback(async () => {
         try {
             const response = await api.get('/groups');
             setGroups(response.data || []);
         } catch (error) {
             console.error("Failed to fetch groups", error);
         }
-    };
+    }, []);
 
-    const fetchSwapRequests = async () => {
+    const fetchSwapRequests = useCallback(async () => {
         try {
             const response = await api.get(`/swaps?event_id=${eventId}`);
             setSwapRequests(response.data || []);
         } catch (error) {
             console.error("Failed to fetch swap requests", error);
         }
-    };
+    }, [eventId]);
 
     const handleRequestSwap = (dish) => {
         const isOwnDish = dish.bringer_id === user.id;
@@ -291,10 +211,20 @@ const EventDetails = () => {
         setSelectedSwapRequestId(requestId);
         // Pre-fill with current event data
         const eventDate = new Date(event.date);
+
+        // Find user's household address to overwrite location
+        let userAddress = event.location;
+        if (user.household_id && groupMembers.households) {
+            const userHousehold = groupMembers.households.find(h => h.id === user.household_id);
+            if (userHousehold && userHousehold.address) {
+                userAddress = userHousehold.address;
+            }
+        }
+
         setHostUpdateData({
             date: eventDate.toISOString().split('T')[0],
             time: eventDate.toTimeString().slice(0, 5),
-            location: event.location
+            location: userAddress
         });
         setShowHostAcceptModal(true);
     };
@@ -329,16 +259,22 @@ const EventDetails = () => {
     };
 
     const [showEditEventModal, setShowEditEventModal] = useState(false);
-    const [editEventData, setEditEventData] = useState({ date: '', time: '', location: '', description: '' });
+    const [editEventData, setEditEventData] = useState({ name: '', type: '', date: '', time: '', location: '', description: '', recurrence: '' });
+    const [isEditCustomType, setIsEditCustomType] = useState(false);
 
     const handleEditEventClick = () => {
         const eventDate = new Date(event.date);
         setEditEventData({
+            name: event.name || '',
             date: eventDate.toISOString().split('T')[0],
             time: eventDate.toTimeString().slice(0, 5),
             location: event.location,
-            description: event.description || ''
+            description: event.description || '',
+            recurrence: event.recurrence || '',
+            type: event.type || ''
         });
+        const standardTypes = ['Dinner', 'Lunch', 'Coffee Meet', 'Picnic'];
+        setIsEditCustomType(!standardTypes.includes(event.type));
         setShowEditEventModal(true);
     };
 
@@ -347,9 +283,12 @@ const EventDetails = () => {
         try {
             const dateTime = new Date(`${editEventData.date}T${editEventData.time}`);
             await api.patch(`/events/${eventId}`, {
+                name: editEventData.name,
+                type: editEventData.type,
                 date: dateTime.toISOString(),
                 location: editEventData.location,
                 description: editEventData.description,
+                recurrence: editEventData.recurrence,
                 user_id: user.id
             });
             setShowEditEventModal(false);
@@ -449,6 +388,102 @@ const EventDetails = () => {
         }
     };
 
+    useEffect(() => {
+        fetchEventDetails();
+        fetchDishes();
+        fetchSwapRequests();
+        fetchRSVPs();
+        fetchEventStats();
+    }, [eventId, fetchEventDetails, fetchDishes, fetchSwapRequests, fetchRSVPs, fetchEventStats]);
+
+    useEffect(() => {
+        if (event?.group_id) {
+            fetchGroupMembers(event.group_id);
+        }
+    }, [event, fetchGroupMembers]);
+
+    useEffect(() => {
+        if (lastMessage) {
+            console.log("WebSocket Message Received:", lastMessage);
+            if (lastMessage.type === 'rsvp_updated') {
+                const msgEventId = String(lastMessage.data.event_id);
+                const currentEventId = String(eventId);
+
+                if (msgEventId === currentEventId) {
+                    console.log("Refreshing RSVPs...");
+                    setTimeout(() => fetchRSVPs(), 100);
+
+                    // Show toast
+                    const familyName = lastMessage.data.family_name || "Someone";
+                    const status = lastMessage.data.status;
+                    if (status === 'going') {
+                        toast.success(`${familyName} is going!`);
+                    } else if (status === 'maybe') {
+                        toast.info(`${familyName} might come.`);
+                    } else if (status === 'not_going') {
+                        toast.info(`${familyName} can't make it.`);
+                    }
+                }
+            }
+            if (['dish_added', 'dish_pledged', 'dish_unpledged', 'dish_deleted'].includes(lastMessage.type)) {
+                if (lastMessage.data.event_id === eventId) {
+                    fetchDishes();
+
+                    if (lastMessage.type === 'dish_added') {
+                        toast.success(`New dish added: ${lastMessage.data.name}`);
+                    } else if (lastMessage.type === 'dish_pledged') {
+                        const bringerName = lastMessage.data.bringer_name || "Someone";
+                        const dishName = lastMessage.data.dish_name || "a dish";
+                        toast.success(`${bringerName} is bringing ${dishName}!`);
+                    } else if (lastMessage.type === 'dish_unpledged') {
+                        const dishName = lastMessage.data.dish_name || "A dish";
+                        toast.warning(`${dishName} is available again.`);
+                    }
+                }
+            }
+            if (['swap_created', 'swap_updated'].includes(lastMessage.type)) {
+                if (lastMessage.data.event_id === eventId) {
+                    fetchSwapRequests();
+                    fetchDishes();
+
+                    if (lastMessage.type === 'swap_created') {
+                        toast.info("New swap request received.");
+                    } else if (lastMessage.type === 'swap_updated') {
+                        toast.info(`Swap request ${lastMessage.data.status}.`);
+                    }
+                }
+            }
+            if (lastMessage.type === 'event_updated') {
+                if (lastMessage.data.id === eventId) {
+                    fetchEventDetails();
+                    toast.info("Event details updated.");
+                }
+            }
+        }
+    }, [lastMessage, eventId, fetchRSVPs, fetchDishes, fetchSwapRequests, fetchEventDetails]);
+
+    useEffect(() => {
+        fetchGroups();
+    }, [user, fetchGroups]);
+
+    useEffect(() => {
+        if (event && groups.length > 0) {
+            const group = groups.find(g => g.id === event.group_id);
+            setIsAdmin(group?.admin_id === user.id);
+        }
+    }, [event, groups, user]);
+
+    useEffect(() => {
+        if (event && groupMembers.families) {
+            const host = groupMembers.families.find(m => m.id === event.host_id);
+            if (host && user.household_id && host.household_id === user.household_id) {
+                setIsHostHousehold(true);
+            } else {
+                setIsHostHousehold(false);
+            }
+        }
+    }, [event, groupMembers, user]);
+
     if (loading) return <div className="flex justify-center items-center h-screen">Loading...</div>;
     if (!event) return <div className="text-center py-12">Event not found</div>;
 
@@ -495,7 +530,7 @@ const EventDetails = () => {
                     <div className="p-6">
                         <div className="flex justify-between items-start mb-6">
                             <div>
-                                <h2 className="text-2xl font-bold text-gray-800 mb-2">{event.type}</h2>
+                                <h2 className="text-2xl font-bold text-gray-800 mb-2">{event.name || event.type}</h2>
                                 <div className="flex items-center gap-2 text-gray-600 mb-1">
                                     <Calendar className="w-5 h-5 text-orange-500" />
                                     <span>{new Date(event.date).toLocaleDateString()} at {new Date(event.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
@@ -523,7 +558,7 @@ const EventDetails = () => {
                                         {event.recurrence}
                                     </span>
                                 )}
-                                {event.host_id === user.id && (
+                                {(isAdmin || event.host_id === user.id || isHostHousehold) && (
                                     <button
                                         onClick={handleEditEventClick}
                                         className="text-gray-400 hover:text-orange-600 p-1 rounded-full hover:bg-orange-50 transition"
@@ -535,7 +570,7 @@ const EventDetails = () => {
                             </div>
                         </div>
 
-                        {(isAdmin || event.host_id === user.id) && (
+                        {(isAdmin || event.host_id === user.id || isHostHousehold) && (
                             <div className="mb-6">
                                 <button
                                     onClick={shareGuestLink}
@@ -606,7 +641,7 @@ const EventDetails = () => {
                             </div>
 
                             {/* Host Swap Actions */}
-                            {event.host_id === user.id && (
+                            {(event.host_id === user.id || isHostHousehold) && (
                                 <div className="bg-orange-50 p-4 rounded-lg border border-orange-100">
                                     <h4 className="font-semibold text-orange-800 mb-2">Host Options</h4>
                                     <button
@@ -637,7 +672,7 @@ const EventDetails = () => {
                 </div>
 
                 {/* Host Summary */}
-                {event.host_id === user.id && (
+                {(event.host_id === user.id || isHostHousehold) && (
                     <HostSummary rsvps={rsvps} dishes={dishes} />
                 )}
 
@@ -740,7 +775,7 @@ const EventDetails = () => {
                                             >
                                                 Pledge
                                             </button>
-                                            {isAdmin && (
+                                            {(isAdmin || event.host_id === user.id || isHostHousehold) && (
                                                 <button
                                                     onClick={() => handleDeleteDish(dish.id)}
                                                     className="text-gray-400 hover:text-red-500 p-1"
@@ -801,7 +836,7 @@ const EventDetails = () => {
                                                         <RefreshCw className="w-4 h-4" />
                                                     </button>
                                                 )}
-                                                {(dish.bringer_id === user.id || isAdmin) && (
+                                                {(dish.bringer_id === user.id || isAdmin || event.host_id === user.id || isHostHousehold) && (
                                                     <div className="flex gap-1">
                                                         {dish.is_requested && dish.bringer_id === user.id && (
                                                             <button
@@ -931,7 +966,7 @@ const EventDetails = () => {
                                 </div>
                             </div>
 
-                            {isAdmin && (
+                            {(isAdmin || event.host_id === user.id || isHostHousehold) && (
                                 <div className="flex items-center gap-2">
                                     <input
                                         type="checkbox"
@@ -1064,6 +1099,16 @@ const EventDetails = () => {
                         <h3 className="text-xl font-bold text-gray-800 mb-4">Edit Event Details</h3>
                         <form onSubmit={handleUpdateEvent} className="space-y-4">
                             <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Event Name</label>
+                                <input
+                                    type="text"
+                                    value={editEventData.name}
+                                    onChange={(e) => setEditEventData({ ...editEventData, name: e.target.value })}
+                                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
+                                    required
+                                />
+                            </div>
+                            <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
                                 <input
                                     type="date"
@@ -1072,6 +1117,38 @@ const EventDetails = () => {
                                     className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
                                     required
                                 />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                                <select
+                                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
+                                    value={isEditCustomType ? 'Other' : editEventData.type}
+                                    onChange={e => {
+                                        if (e.target.value === 'Other') {
+                                            setIsEditCustomType(true);
+                                            setEditEventData({ ...editEventData, type: '' });
+                                        } else {
+                                            setIsEditCustomType(false);
+                                            setEditEventData({ ...editEventData, type: e.target.value });
+                                        }
+                                    }}
+                                >
+                                    <option>Dinner</option>
+                                    <option>Lunch</option>
+                                    <option>Coffee Meet</option>
+                                    <option>Picnic</option>
+                                    <option>Other</option>
+                                </select>
+                                {isEditCustomType && (
+                                    <input
+                                        type="text"
+                                        placeholder="Enter custom type"
+                                        className="w-full mt-2 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
+                                        value={editEventData.type}
+                                        onChange={e => setEditEventData({ ...editEventData, type: e.target.value })}
+                                        required
+                                    />
+                                )}
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Time</label>
@@ -1093,6 +1170,31 @@ const EventDetails = () => {
                                     required
                                 />
                             </div>
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="checkbox"
+                                    id="editIsRecurring"
+                                    className="w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
+                                    checked={!!editEventData.recurrence}
+                                    onChange={e => setEditEventData({ ...editEventData, recurrence: e.target.checked ? 'Weekly' : '' })}
+                                />
+                                <label htmlFor="editIsRecurring" className="text-sm font-medium text-gray-700">Recurring Event</label>
+                            </div>
+                            {editEventData.recurrence && (
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
+                                    <select
+                                        className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
+                                        value={editEventData.recurrence}
+                                        onChange={e => setEditEventData({ ...editEventData, recurrence: e.target.value })}
+                                    >
+                                        <option value="Daily">Daily</option>
+                                        <option value="Weekly">Weekly</option>
+                                        <option value="Bi-Weekly">Bi-Weekly</option>
+                                        <option value="Monthly">Monthly</option>
+                                    </select>
+                                </div>
+                            )}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                                 <textarea

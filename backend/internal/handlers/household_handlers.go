@@ -107,7 +107,11 @@ func (s *Server) GetHousehold(w http.ResponseWriter, r *http.Request) {
 			// Log error but continue with empty members
 			log.Printf("Error fetching household members: %v", err)
 		} else {
-			household.Members = members
+			safeMembers := make([]models.SafeFamilyMember, len(members))
+			for i, m := range members {
+				safeMembers[i] = m.ToSafe()
+			}
+			household.Members = safeMembers
 		}
 	}
 

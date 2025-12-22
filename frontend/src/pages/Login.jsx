@@ -5,8 +5,14 @@ import { useNavigate } from 'react-router-dom';
 import { UtensilsCrossed } from 'lucide-react';
 
 const Login = () => {
-    const { login } = useAuth();
+    const { user, login } = useAuth();
     const navigate = useNavigate();
+
+    React.useEffect(() => {
+        if (user) {
+            navigate('/dashboard');
+        }
+    }, [user, navigate]);
 
     const handleSuccess = async (credentialResponse) => {
         try {

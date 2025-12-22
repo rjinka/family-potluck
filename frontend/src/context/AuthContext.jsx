@@ -12,7 +12,12 @@ export const AuthProvider = ({ children }) => {
             const response = await api.get('/auth/me');
             setUser(response.data);
         } catch (error) {
-            setUser(null);
+            console.error("Auth check failed", error);
+            // Only clear user if it's a 401 Unauthorized
+            if (error.response && error.response.status === 401) {
+                setUser(null);
+            }
+            // For other errors (like network issues), we keep the cached user
         } finally {
             setLoading(false);
         }
