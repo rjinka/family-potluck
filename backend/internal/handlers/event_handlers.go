@@ -3,10 +3,12 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"family-potluck/backend/internal/gemini"
 	"family-potluck/backend/internal/models"
 	"fmt"
 	"net/http"
 	"sort"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -54,6 +56,54 @@ func (s *Server) CreateEvent(w http.ResponseWriter, r *http.Request) {
 	}
 	msgBytes, _ := json.Marshal(msg)
 	s.Hub.Broadcast(msgBytes)
+
+	// Suggest dishes using Gemini only if there is a proper description
+	if len(strings.TrimSpace(event.Description)) >= 10 {
+		go func(event models.Event) {
+			// Broadcast that suggestions are starting
+			startMsg := map[string]interface{}{
+				"type": "suggestions_started",
+				"data": map[string]interface{}{"event_id": event.ID},
+			}
+			startBytes, _ := json.Marshal(startMsg)
+			s.Hub.Broadcast(startBytes)
+
+			suggestions, err := gemini.SuggestDishes(context.Background(), event.Name, event.Description, event.Type)
+			if err != nil {
+				fmt.Printf("Failed to suggest dishes: %v\n", err)
+				return
+			}
+
+			for _, sDish := range suggestions {
+				dish := models.Dish{
+					ID:          primitive.NewObjectID(),
+					EventID:     event.ID,
+					Name:        sDish.Name,
+					Description: sDish.Description,
+					DietaryTags: sDish.DietaryTags,
+					IsSuggested: true,
+				}
+				err = s.DB.CreateDish(context.Background(), &dish)
+				if err == nil {
+					// Broadcast update for each dish
+					msg := map[string]interface{}{
+						"type": "dish_added",
+						"data": dish,
+					}
+					msgBytes, _ := json.Marshal(msg)
+					s.Hub.Broadcast(msgBytes)
+				}
+			}
+
+			// Broadcast that suggestions are finished
+			finishMsg := map[string]interface{}{
+				"type": "suggestions_finished",
+				"data": map[string]interface{}{"event_id": event.ID},
+			}
+			finishBytes, _ := json.Marshal(finishMsg)
+			s.Hub.Broadcast(finishBytes)
+		}(event)
+	}
 
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(event)
@@ -200,6 +250,54 @@ func (s *Server) FinishEvent(w http.ResponseWriter, r *http.Request) {
 	}
 	msgBytesNew, _ := json.Marshal(msgNew)
 	s.Hub.Broadcast(msgBytesNew)
+
+	// Suggest dishes using Gemini for new event only if there is a proper description
+	if len(strings.TrimSpace(newEvent.Description)) >= 10 {
+		go func(event models.Event) {
+			// Broadcast that suggestions are starting
+			startMsg := map[string]interface{}{
+				"type": "suggestions_started",
+				"data": map[string]interface{}{"event_id": event.ID},
+			}
+			startBytes, _ := json.Marshal(startMsg)
+			s.Hub.Broadcast(startBytes)
+
+			suggestions, err := gemini.SuggestDishes(context.Background(), event.Name, event.Description, event.Type)
+			if err != nil {
+				fmt.Printf("Failed to suggest dishes: %v\n", err)
+				return
+			}
+
+			for _, sDish := range suggestions {
+				dish := models.Dish{
+					ID:          primitive.NewObjectID(),
+					EventID:     event.ID,
+					Name:        sDish.Name,
+					Description: sDish.Description,
+					DietaryTags: sDish.DietaryTags,
+					IsSuggested: true,
+				}
+				err = s.DB.CreateDish(context.Background(), &dish)
+				if err == nil {
+					// Broadcast update for each dish
+					msg := map[string]interface{}{
+						"type": "dish_added",
+						"data": dish,
+					}
+					msgBytes, _ := json.Marshal(msg)
+					s.Hub.Broadcast(msgBytes)
+				}
+			}
+
+			// Broadcast that suggestions are finished
+			finishMsg := map[string]interface{}{
+				"type": "suggestions_finished",
+				"data": map[string]interface{}{"event_id": event.ID},
+			}
+			finishBytes, _ := json.Marshal(finishMsg)
+			s.Hub.Broadcast(finishBytes)
+		}(newEvent)
+	}
 
 	// Broadcast deletion for old event
 	msgDelete := map[string]interface{}{

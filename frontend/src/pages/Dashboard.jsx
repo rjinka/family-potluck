@@ -7,7 +7,7 @@ import api from '../api/axios';
 import {
     Calendar, MapPin, Users, Plus, ChevronRight,
     LogOut, Settings, Bell, Search, Filter,
-    ChefHat, Clock, ArrowRight, SkipForward, CheckCircle, XCircle, RefreshCw
+    ChefHat, Clock, ArrowRight, SkipForward, CheckCircle, RefreshCw, Trash2
 } from 'lucide-react';
 
 const Dashboard = () => {
@@ -160,18 +160,18 @@ const Dashboard = () => {
 
     const handleDeleteEvent = async (eventId) => {
         confirm({
-            title: "Cancel Event",
-            message: "Are you sure you want to cancel this event? This will remove it from the calendar.",
-            confirmText: "Cancel Event",
+            title: "Delete Event",
+            message: "Are you sure you want to delete this event? This action cannot be undone.",
+            confirmText: "Delete Event",
             isDestructive: true,
             onConfirm: async () => {
                 try {
                     await api.delete(`/events/${eventId}?user_id=${user.id}`);
                     fetchEvents();
-                    showToast("Event cancelled successfully");
+                    showToast("Event deleted successfully");
                 } catch (error) {
-                    console.error("Failed to cancel event", error);
-                    showToast("Failed to cancel event", "error");
+                    console.error("Failed to delete event", error);
+                    showToast("Failed to delete event", "error");
                 }
             }
         });
@@ -508,13 +508,15 @@ const Dashboard = () => {
                                                                 <CheckCircle className="w-5 h-5" />
                                                             </button>
                                                         )}
-                                                        <button
-                                                            onClick={() => handleDeleteEvent(event.id)}
-                                                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
-                                                            title="Cancel Event"
-                                                        >
-                                                            <XCircle className="w-5 h-5" />
-                                                        </button>
+                                                        {userGroups.find(g => g.id === selectedGroupId)?.admin_id === user?.id && (
+                                                            <button
+                                                                onClick={() => handleDeleteEvent(event.id)}
+                                                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
+                                                                title="Delete Event"
+                                                            >
+                                                                <Trash2 className="w-5 h-5" />
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>

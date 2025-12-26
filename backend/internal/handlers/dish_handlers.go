@@ -180,6 +180,10 @@ func (s *Server) UnpledgeDish(w http.ResponseWriter, r *http.Request) {
 	msgBytes, _ := json.Marshal(msg)
 	s.Hub.Broadcast(msgBytes)
 
+	// If it was a suggested dish, we might want to delete it if unpledged?
+	// No, let's keep it as a suggestion again.
+	// But we need to make sure IsSuggested is still true if it was originally suggested.
+
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -195,6 +199,47 @@ func (s *Server) DeleteDish(w http.ResponseWriter, r *http.Request) {
 	dish, err := s.DB.GetDishByID(context.Background(), id)
 	if err != nil {
 		http.Error(w, "Dish not found", http.StatusNotFound)
+		return
+	}
+
+	// Permission check
+	userIDStr := r.URL.Query().Get("user_id")
+	if userIDStr == "" {
+		http.Error(w, "Missing user_id", http.StatusBadRequest)
+		return
+	}
+	userID, err := primitive.ObjectIDFromHex(userIDStr)
+	if err != nil {
+		http.Error(w, "Invalid user_id", http.StatusBadRequest)
+		return
+	}
+
+	event, err := s.DB.GetEvent(context.Background(), dish.EventID)
+	if err != nil {
+		http.Error(w, "Event not found", http.StatusInternalServerError)
+		return
+	}
+
+	group, err := s.DB.GetGroup(context.Background(), event.GroupID)
+	if err != nil {
+		http.Error(w, "Group not found", http.StatusInternalServerError)
+		return
+	}
+
+	isAuthorized := false
+	if group.AdminID == userID || event.HostID == userID || (dish.BringerID != nil && *dish.BringerID == userID) {
+		isAuthorized = true
+	} else {
+		// Check if userID is in host's household
+		userMember, errUser := s.DB.GetFamilyMemberByID(context.Background(), userID)
+		hostMember, errHost := s.DB.GetFamilyMemberByID(context.Background(), event.HostID)
+		if errUser == nil && errHost == nil && userMember.HouseholdID != nil && hostMember.HouseholdID != nil && *userMember.HouseholdID == *hostMember.HouseholdID {
+			isAuthorized = true
+		}
+	}
+
+	if !isAuthorized {
+		http.Error(w, "Unauthorized", http.StatusForbidden)
 		return
 	}
 
