@@ -8,22 +8,18 @@ export const WebSocketProvider = ({ children }) => {
 
     useEffect(() => {
         // Connect to WebSocket
-        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-
-        let wsHost;
+        let wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        let wsHost = `${window.location.hostname}:5000`;
         const apiUrl = import.meta.env.VITE_API_URL;
 
         if (apiUrl) {
-            // Extract host from VITE_API_URL (e.g., https://api.example.com -> api.example.com)
             try {
                 const url = new URL(apiUrl);
                 wsHost = url.host;
+                wsProtocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
             } catch (e) {
                 console.error("Invalid VITE_API_URL", e);
-                wsHost = `${window.location.hostname}:5000`;
             }
-        } else {
-            wsHost = `${window.location.hostname}:5000`;
         }
 
         const wsUrl = `${wsProtocol}//${wsHost}/ws`;

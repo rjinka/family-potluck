@@ -41,13 +41,18 @@ func GenerateToken(userID string) (string, error) {
 
 func setTokenCookie(w http.ResponseWriter, token string) {
 	isProduction := os.Getenv("APP_ENV") == "production"
+	sameSite := http.SameSiteLaxMode
+	if isProduction {
+		sameSite = http.SameSiteNoneMode
+	}
+
 	http.SetCookie(w, &http.Cookie{
 		Name:     "token",
 		Value:    token,
 		Expires:  time.Now().Add(72 * time.Hour),
 		HttpOnly: true,
 		Path:     "/",
-		SameSite: http.SameSiteLaxMode,
+		SameSite: sameSite,
 		Secure:   isProduction,
 	})
 }
@@ -123,13 +128,20 @@ func (s *Server) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) Logout(w http.ResponseWriter, r *http.Request) {
+	isProduction := os.Getenv("APP_ENV") == "production"
+	sameSite := http.SameSiteLaxMode
+	if isProduction {
+		sameSite = http.SameSiteNoneMode
+	}
+
 	http.SetCookie(w, &http.Cookie{
 		Name:     "token",
 		Value:    "",
 		Expires:  time.Unix(0, 0),
 		HttpOnly: true,
 		Path:     "/",
-		SameSite: http.SameSiteLaxMode,
+		SameSite: sameSite,
+		Secure:   isProduction,
 	})
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("Logged out"))
