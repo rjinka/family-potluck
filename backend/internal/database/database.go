@@ -236,7 +236,15 @@ func (s *service) GetGroups(ctx context.Context) ([]models.Group, error) {
 }
 
 func (s *service) DeleteGroup(ctx context.Context, id primitive.ObjectID) error {
-	_, err := s.db.Collection("groups").DeleteOne(ctx, bson.M{"_id": id})
+	// Delete all events associated with this group
+	events, err := s.GetEventsByGroupID(ctx, id, true)
+	if err == nil {
+		for _, event := range events {
+			_ = s.DeleteEvent(ctx, event.ID)
+		}
+	}
+
+	_, err = s.db.Collection("groups").DeleteOne(ctx, bson.M{"_id": id})
 	return err
 }
 
@@ -304,6 +312,14 @@ func (s *service) UpdateEvent(ctx context.Context, id primitive.ObjectID, update
 }
 
 func (s *service) DeleteEvent(ctx context.Context, id primitive.ObjectID) error {
+	// Delete related data first
+	filter := bson.M{"event_id": id}
+	_, _ = s.db.Collection("dishes").DeleteMany(ctx, filter)
+	_, _ = s.db.Collection("rsvps").DeleteMany(ctx, filter)
+	_, _ = s.db.Collection("swaps").DeleteMany(ctx, filter)
+	_, _ = s.db.Collection("chat").DeleteMany(ctx, filter)
+
+	// Delete the event itself
 	_, err := s.db.Collection("events").DeleteOne(ctx, bson.M{"_id": id})
 	return err
 }
