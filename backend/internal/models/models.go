@@ -97,6 +97,7 @@ type Dish struct {
 	BringerName string              `json:"bringer_name,omitempty" bson:"-"`
 	IsHostDish  bool                `json:"is_host_dish" bson:"is_host_dish"`
 	IsRequested bool                `json:"is_requested" bson:"is_requested"`
+	IsSuggested bool                `json:"is_suggested" bson:"is_suggested"`
 }
 
 type SwapRequest struct {

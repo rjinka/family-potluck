@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import api from '../api/axios';
 import {
     Calendar, MapPin, ChefHat, ArrowLeft, CheckCircle,
-    HelpCircle, XCircle, Trash2, Plus, User, RefreshCw, Share2, Copy, BarChart2, Edit
+    HelpCircle, XCircle, Trash2, Plus, User, RefreshCw, Share2, Copy, BarChart2, Edit, Sparkles
 } from 'lucide-react';
 
 import { useUI } from '../context/UIContext';
@@ -43,6 +43,7 @@ const EventDetails = () => {
     const [eventStats, setEventStats] = useState(null);
     const [rsvpData, setRsvpData] = useState({ count: 1, kidsCount: 0 });
     const [hostUpdateData, setHostUpdateData] = useState({ date: '', time: '', location: '' });
+    const [isAiThinking, setIsAiThinking] = useState(false);
 
 
 
@@ -351,7 +352,7 @@ const EventDetails = () => {
 
     const executeDeleteDish = async (dishId) => {
         try {
-            await api.delete(`/dishes/${dishId}`);
+            await api.delete(`/dishes/${dishId}?user_id=${user.id}`);
             fetchDishes();
         } catch (error) {
             console.error("Failed to delete dish", error);
@@ -426,12 +427,21 @@ const EventDetails = () => {
                 }
             }
             if (['dish_added', 'dish_pledged', 'dish_unpledged', 'dish_deleted'].includes(lastMessage.type)) {
-                if (lastMessage.data.event_id === eventId) {
-                    fetchDishes();
+                const msgEventId = String(lastMessage.data.event_id);
+                const currentEventId = String(eventId);
 
+                if (msgEventId === currentEventId) {
                     if (lastMessage.type === 'dish_added') {
+                        setDishes(prev => {
+                            if (prev.some(d => d.id === lastMessage.data.id)) return prev;
+                            return [...prev, lastMessage.data];
+                        });
                         toast.success(`New dish added: ${lastMessage.data.name}`);
-                    } else if (lastMessage.type === 'dish_pledged') {
+                    } else {
+                        fetchDishes();
+                    }
+
+                    if (lastMessage.type === 'dish_pledged') {
                         const bringerName = lastMessage.data.bringer_name || "Someone";
                         const dishName = lastMessage.data.dish_name || "a dish";
                         toast.success(`${bringerName} is bringing ${dishName}!`);
@@ -441,11 +451,27 @@ const EventDetails = () => {
                     }
                 }
             }
+            if (lastMessage.type === 'suggestions_started') {
+                const msgEventId = String(lastMessage.data.event_id);
+                const currentEventId = String(eventId);
+                if (msgEventId === currentEventId) {
+                    setIsAiThinking(true);
+                }
+            }
+            if (lastMessage.type === 'suggestions_finished') {
+                const msgEventId = String(lastMessage.data.event_id);
+                const currentEventId = String(eventId);
+                if (msgEventId === currentEventId) {
+                    setIsAiThinking(false);
+                    fetchDishes();
+                }
+            }
             if (['swap_created', 'swap_updated'].includes(lastMessage.type)) {
-                if (lastMessage.data.event_id === eventId) {
+                const msgEventId = String(lastMessage.data.event_id);
+                const currentEventId = String(eventId);
+                if (msgEventId === currentEventId) {
                     fetchSwapRequests();
                     fetchDishes();
-
                     if (lastMessage.type === 'swap_created') {
                         toast.info("New swap request received.");
                     } else if (lastMessage.type === 'swap_updated') {
@@ -454,7 +480,9 @@ const EventDetails = () => {
                 }
             }
             if (lastMessage.type === 'event_updated') {
-                if (lastMessage.data.id === eventId) {
+                const msgEventId = String(lastMessage.data.id);
+                const currentEventId = String(eventId);
+                if (msgEventId === currentEventId) {
                     fetchEventDetails();
                     toast.info("Event details updated.");
                 }
@@ -487,8 +515,9 @@ const EventDetails = () => {
     if (loading) return <div className="flex justify-center items-center h-screen">Loading...</div>;
     if (!event) return <div className="text-center py-12">Event not found</div>;
 
-    const requestedDishes = dishes.filter(d => !d.bringer_id);
+    const requestedDishes = dishes.filter(d => !d.bringer_id && !d.is_suggested);
     const pledgedDishes = dishes.filter(d => d.bringer_id);
+    const suggestedDishes = dishes.filter(d => d.is_suggested && !d.bringer_id);
 
     // Filter for active (pending) swap requests relevant to the current user
     const activeSwapRequests = swapRequests.filter(req =>
@@ -748,6 +777,76 @@ const EventDetails = () => {
                         <h3 className="text-lg font-bold text-gray-800">Potluck Dishes</h3>
                     </div>
 
+                    {/* AI Suggested Dishes */}
+                    {(suggestedDishes.length > 0 || isAiThinking) && (
+                        <div className="mb-8">
+                            <div className="flex items-center justify-between mb-3 border-b border-gray-100 pb-2">
+                                <h4 className="font-semibold text-gray-700 flex items-center gap-2">
+                                    <Sparkles className="w-4 h-4 text-purple-500" />
+                                    AI Suggested Dishes
+                                </h4>
+                                {isAiThinking ? (
+                                    <div className="flex items-center gap-2 text-[10px] text-purple-600 font-medium animate-pulse">
+                                        <RefreshCw className="w-3 h-3 animate-spin" />
+                                        AI is thinking...
+                                    </div>
+                                ) : (
+                                    <span className="text-[10px] text-gray-400 italic">AI generated suggestions</span>
+                                )}
+                            </div>
+
+                            {suggestedDishes.length > 0 ? (
+                                <div className="space-y-3">
+                                    {suggestedDishes.map(dish => (
+                                        <div key={dish.id} className="flex justify-between items-center p-3 border border-purple-100 bg-purple-50/30 rounded-lg animate-in fade-in slide-in-from-left-2">
+                                            <div>
+                                                <h4 className="font-medium text-gray-800">{dish.name}</h4>
+                                                {dish.description && <p className="text-sm text-gray-500">{dish.description}</p>}
+                                                {dish.dietary_tags && dish.dietary_tags.length > 0 && (
+                                                    <div className="flex flex-wrap gap-1 mt-1">
+                                                        {dish.dietary_tags.map(tag => (
+                                                            <span key={tag} className="px-2 py-0.5 bg-green-50 text-green-700 text-[10px] rounded-full border border-green-100">
+                                                                {tag}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    onClick={() => handlePledgeDish(dish.id)}
+                                                    className="text-sm bg-purple-600 text-white px-3 py-1.5 rounded-lg hover:bg-purple-700 transition"
+                                                >
+                                                    I'll Bring This
+                                                </button>
+                                                {(isAdmin || event.host_id === user.id || isHostHousehold) && (
+                                                    <button
+                                                        onClick={() => handleDeleteDish(dish.id)}
+                                                        className="text-gray-400 hover:text-red-500 p-1"
+                                                        title="Delete suggestion"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : isAiThinking && (
+                                <div className="p-8 text-center bg-purple-50/20 rounded-lg border border-dashed border-purple-100 animate-pulse">
+                                    <Sparkles className="w-8 h-8 text-purple-300 mx-auto mb-2" />
+                                    <p className="text-sm text-purple-400">Generating delicious suggestions for your event...</p>
+                                </div>
+                            )}
+
+                            {!isAiThinking && suggestedDishes.length > 0 && (
+                                <p className="text-[10px] text-gray-400 mt-2 italic">
+                                    * These dishes were suggested by AI based on the event details. Please verify ingredients and dietary tags.
+                                </p>
+                            )}
+                        </div>
+                    )}
+
                     {/* Requested Dishes */}
                     {requestedDishes.length > 0 && (
                         <div className="mb-8">
@@ -815,8 +914,9 @@ const EventDetails = () => {
                                         <div className="text-right flex flex-col items-end">
                                             <span className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Brought by</span>
                                             <div className="flex items-center gap-2">
-                                                <span className="text-sm font-medium text-orange-600 bg-orange-50 px-2 py-1 rounded-full">
+                                                <span className="text-sm font-medium text-orange-600 bg-orange-50 px-2 py-1 rounded-full flex items-center gap-1">
                                                     {dish.bringer_id === user.id ? 'You' : (dish.bringer_name || 'Someone')}
+                                                    {dish.is_suggested && <Sparkles className="w-3 h-3 text-purple-400" title="AI Suggested" />}
                                                 </span>
                                                 {dish.bringer_id !== user.id && (
                                                     <button
