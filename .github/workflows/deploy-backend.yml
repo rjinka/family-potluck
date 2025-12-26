@@ -14,6 +14,7 @@ env:
   REPO_NAME: family-potluck-repo
   SERVICE_NAME: family-potluck-backend
   APP_ENV: production
+  GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
 jobs:
   deploy:
