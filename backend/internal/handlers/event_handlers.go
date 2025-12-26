@@ -68,6 +68,16 @@ func (s *Server) CreateEvent(w http.ResponseWriter, r *http.Request) {
 			startBytes, _ := json.Marshal(startMsg)
 			s.Hub.Broadcast(startBytes)
 
+			// Ensure we always send finished message
+			defer func() {
+				finishMsg := map[string]interface{}{
+					"type": "suggestions_finished",
+					"data": map[string]interface{}{"event_id": event.ID},
+				}
+				finishBytes, _ := json.Marshal(finishMsg)
+				s.Hub.Broadcast(finishBytes)
+			}()
+
 			suggestions, err := gemini.SuggestDishes(context.Background(), event.Name, event.Description, event.Type)
 			if err != nil {
 				fmt.Printf("Failed to suggest dishes: %v\n", err)
@@ -94,14 +104,6 @@ func (s *Server) CreateEvent(w http.ResponseWriter, r *http.Request) {
 					s.Hub.Broadcast(msgBytes)
 				}
 			}
-
-			// Broadcast that suggestions are finished
-			finishMsg := map[string]interface{}{
-				"type": "suggestions_finished",
-				"data": map[string]interface{}{"event_id": event.ID},
-			}
-			finishBytes, _ := json.Marshal(finishMsg)
-			s.Hub.Broadcast(finishBytes)
 		}(event)
 	}
 
@@ -262,6 +264,16 @@ func (s *Server) FinishEvent(w http.ResponseWriter, r *http.Request) {
 			startBytes, _ := json.Marshal(startMsg)
 			s.Hub.Broadcast(startBytes)
 
+			// Ensure we always send finished message
+			defer func() {
+				finishMsg := map[string]interface{}{
+					"type": "suggestions_finished",
+					"data": map[string]interface{}{"event_id": event.ID},
+				}
+				finishBytes, _ := json.Marshal(finishMsg)
+				s.Hub.Broadcast(finishBytes)
+			}()
+
 			suggestions, err := gemini.SuggestDishes(context.Background(), event.Name, event.Description, event.Type)
 			if err != nil {
 				fmt.Printf("Failed to suggest dishes: %v\n", err)
@@ -288,14 +300,6 @@ func (s *Server) FinishEvent(w http.ResponseWriter, r *http.Request) {
 					s.Hub.Broadcast(msgBytes)
 				}
 			}
-
-			// Broadcast that suggestions are finished
-			finishMsg := map[string]interface{}{
-				"type": "suggestions_finished",
-				"data": map[string]interface{}{"event_id": event.ID},
-			}
-			finishBytes, _ := json.Marshal(finishMsg)
-			s.Hub.Broadcast(finishBytes)
 		}(newEvent)
 	}
 
