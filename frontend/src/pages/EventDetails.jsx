@@ -51,7 +51,6 @@ const EventDetails = () => {
         try {
             const response = await api.get(`/events/${eventId}`);
             setEvent(response.data);
-            // TODO: Fetch user's current RSVP status if it exists
         } catch (error) {
             console.error("Failed to fetch event details", error);
         } finally {
@@ -71,11 +70,16 @@ const EventDetails = () => {
     const fetchRSVPs = useCallback(async () => {
         try {
             const response = await api.get(`/rsvps?event_id=${eventId}`);
-            setRsvps(response.data || []);
+            const rsvpList = response.data || [];
+            setRsvps(rsvpList);
             // Update current user's RSVP status
-            const myRsvp = (response.data || []).find(r => r.family_id === user.id);
+            const myRsvp = rsvpList.find(r => r.family_id === user.id);
             if (myRsvp) {
                 setRsvpStatus(myRsvp.status);
+                setRsvpData({
+                    count: myRsvp.count || 1,
+                    kidsCount: myRsvp.kids_count || 0
+                });
             }
         } catch (error) {
             console.error("Failed to fetch RSVPs", error);
