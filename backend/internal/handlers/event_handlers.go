@@ -144,7 +144,7 @@ func (s *Server) FinishEvent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	isAuthorized := false
-	if group.AdminID == adminID || event.HostID == adminID {
+	if isAdmin(group.AdminIDs, adminID) || event.HostID == adminID {
 		isAuthorized = true
 	} else {
 		// Check if adminID belongs to host's household
@@ -350,7 +350,7 @@ func (s *Server) SkipEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	isAuthorized := false
-	if group.AdminID == adminID || event.HostID == adminID {
+	if isAdmin(group.AdminIDs, adminID) || event.HostID == adminID {
 		isAuthorized = true
 	} else {
 		// Check if adminID belongs to host's household
@@ -595,7 +595,7 @@ func (s *Server) DeleteEvent(w http.ResponseWriter, r *http.Request) {
 
 	// Check authorization
 	isAuthorized := false
-	if group.AdminID == userID {
+	if isAdmin(group.AdminIDs, userID) {
 		isAuthorized = true
 	} else {
 		// Check if userID is host or in host's household

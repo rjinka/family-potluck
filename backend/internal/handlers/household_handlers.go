@@ -196,7 +196,7 @@ func (s *Server) DeleteHousehold(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Group not found", http.StatusNotFound)
 			return
 		}
-		if group.AdminID != adminID {
+		if !isAdmin(group.AdminIDs, adminID) {
 			http.Error(w, "Unauthorized: Only admin can delete household", http.StatusForbidden)
 			return
 		}
@@ -231,7 +231,7 @@ func (s *Server) RemoveMemberFromHousehold(w http.ResponseWriter, r *http.Reques
 			http.Error(w, "Group not found", http.StatusNotFound)
 			return
 		}
-		if group.AdminID != *req.AdminID {
+		if !isAdmin(group.AdminIDs, *req.AdminID) {
 			http.Error(w, "Unauthorized: Only admin can remove members", http.StatusForbidden)
 			return
 		}

@@ -45,6 +45,7 @@ func main() {
 	mux.HandleFunc("POST /groups/join-by-code", server.JoinGroupByCode)
 	mux.HandleFunc("GET /groups/code/{code}", server.GetGroupByCode)
 	mux.HandleFunc("DELETE /groups/{id}", server.DeleteGroup)
+	mux.HandleFunc("PATCH /groups/{id}", server.UpdateGroup)
 	mux.HandleFunc("GET /groups/{id}", server.GetGroup)
 	mux.HandleFunc("GET /groups", server.GetGroups)
 	mux.HandleFunc("GET /families", server.GetFamilyMember)

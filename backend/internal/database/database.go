@@ -35,6 +35,7 @@ type Service interface {
 	GetGroup(ctx context.Context, id primitive.ObjectID) (*models.Group, error)
 	GetGroupByCode(ctx context.Context, code string) (*models.Group, error)
 	GetGroups(ctx context.Context) ([]models.Group, error)
+	UpdateGroup(ctx context.Context, id primitive.ObjectID, update bson.M) error
 	DeleteGroup(ctx context.Context, id primitive.ObjectID) error
 
 	// Events
@@ -210,6 +211,9 @@ func (s *service) GetGroup(ctx context.Context, id primitive.ObjectID) (*models.
 	if err != nil {
 		return nil, err
 	}
+	if len(group.AdminIDs) == 0 && !group.AdminID.IsZero() {
+		group.AdminIDs = []primitive.ObjectID{group.AdminID}
+	}
 	return &group, nil
 }
 
@@ -218,6 +222,9 @@ func (s *service) GetGroupByCode(ctx context.Context, code string) (*models.Grou
 	err := s.db.Collection("groups").FindOne(ctx, bson.M{"join_code": code}).Decode(&group)
 	if err != nil {
 		return nil, err
+	}
+	if len(group.AdminIDs) == 0 && !group.AdminID.IsZero() {
+		group.AdminIDs = []primitive.ObjectID{group.AdminID}
 	}
 	return &group, nil
 }
@@ -232,7 +239,17 @@ func (s *service) GetGroups(ctx context.Context) ([]models.Group, error) {
 	if err = cursor.All(ctx, &groups); err != nil {
 		return nil, err
 	}
+	for i := range groups {
+		if len(groups[i].AdminIDs) == 0 && !groups[i].AdminID.IsZero() {
+			groups[i].AdminIDs = []primitive.ObjectID{groups[i].AdminID}
+		}
+	}
 	return groups, nil
+}
+
+func (s *service) UpdateGroup(ctx context.Context, id primitive.ObjectID, update bson.M) error {
+	_, err := s.db.Collection("groups").UpdateOne(ctx, bson.M{"_id": id}, update)
+	return err
 }
 
 func (s *service) DeleteGroup(ctx context.Context, id primitive.ObjectID) error {

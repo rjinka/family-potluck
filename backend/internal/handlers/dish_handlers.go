@@ -227,7 +227,7 @@ func (s *Server) DeleteDish(w http.ResponseWriter, r *http.Request) {
 	}
 
 	isAuthorized := false
-	if group.AdminID == userID || event.HostID == userID || (dish.BringerID != nil && *dish.BringerID == userID) {
+	if isAdmin(group.AdminIDs, userID) || event.HostID == userID || (dish.BringerID != nil && *dish.BringerID == userID) {
 		isAuthorized = true
 	} else {
 		// Check if userID is in host's household

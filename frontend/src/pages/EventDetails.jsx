@@ -501,7 +501,7 @@ const EventDetails = () => {
     useEffect(() => {
         if (event && groups.length > 0) {
             const group = groups.find(g => g.id === event.group_id);
-            setIsAdmin(group?.admin_id === user.id);
+            setIsAdmin(group?.admin_ids?.includes(user.id) || group?.admin_id === user.id);
         }
     }, [event, groups, user]);
 

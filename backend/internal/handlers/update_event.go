@@ -62,7 +62,7 @@ func (s *Server) UpdateEvent(w http.ResponseWriter, r *http.Request) {
 			groupColl := s.DB.GetCollection("groups")
 			var group models.Group
 			errGroup := groupColl.FindOne(context.Background(), bson.M{"_id": event.GroupID}).Decode(&group)
-			if errGroup == nil && group.AdminID.Hex() == updates.UserID {
+			if errGroup == nil && isAdmin(group.AdminIDs, userOID) {
 				isAuthorized = true
 			}
 		}

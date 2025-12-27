@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useUI } from '../context/UIContext';
 import api from '../api/axios';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Trash2, Share2, Copy, LogOut, Users } from 'lucide-react';
+import { Plus, Trash2, Share2, Copy, LogOut, Users, Pencil } from 'lucide-react';
 import ManageHouseholdModal from '../components/ManageHouseholdModal';
 
 const Groups = () => {
@@ -18,6 +18,11 @@ const Groups = () => {
     const [joining, setJoining] = useState(false);
     const [manageHouseholdModalOpen, setManageHouseholdModalOpen] = useState(false);
     const [manageHouseholdId, setManageHouseholdId] = useState(null);
+    const [editingGroupId, setEditingGroupId] = useState(null);
+    const [editingGroupName, setEditingGroupName] = useState('');
+    const [viewMembersModalOpen, setViewMembersModalOpen] = useState(false);
+    const [currentGroupMembers, setCurrentGroupMembers] = useState([]);
+    const [viewingGroup, setViewingGroup] = useState(null);
 
     const fetchGroups = useCallback(async () => {
         try {
@@ -100,6 +105,49 @@ const Groups = () => {
         }
     };
 
+    const updateGroup = async (groupId, updates) => {
+        try {
+            await api.patch(`/groups/${groupId}`, {
+                ...updates,
+                user_id: user.id
+            });
+            fetchGroups();
+            showToast("Group updated successfully!");
+            setEditingGroupId(null);
+        } catch (error) {
+            console.error("Failed to update group", error);
+            showToast("Failed to update group", "error");
+        }
+    };
+
+    const toggleAdmin = async (group, memberId, currentIsAdmin) => {
+        let newAdminIds = [...(group.admin_ids || [])];
+        if (currentIsAdmin) {
+            if (newAdminIds.length <= 1) {
+                showToast("Group must have at least one admin", "error");
+                return;
+            }
+            newAdminIds = newAdminIds.filter(id => id !== memberId);
+        } else {
+            newAdminIds.push(memberId);
+        }
+
+        try {
+            await api.patch(`/groups/${group.id}`, {
+                admin_ids: newAdminIds,
+                user_id: user.id
+            });
+            // Update local viewingGroup state to reflect changes in modal
+            setViewingGroup({ ...group, admin_ids: newAdminIds });
+            // Also update groups list
+            setGroups(groups.map(g => g.id === group.id ? { ...g, admin_ids: newAdminIds } : g));
+            showToast(currentIsAdmin ? "Admin status removed" : "Admin status granted");
+        } catch (error) {
+            console.error("Failed to update admin status", error);
+            showToast("Failed to update admin status", "error");
+        }
+    };
+
     const shareGroup = (group) => {
         const url = `${window.location.origin}/join/${group.join_code}`;
         navigator.clipboard.writeText(url);
@@ -130,14 +178,10 @@ const Groups = () => {
         }
     };
 
-    const [viewMembersModalOpen, setViewMembersModalOpen] = useState(false);
-    const [currentGroupMembers, setCurrentGroupMembers] = useState([]);
-    const [viewingGroup, setViewingGroup] = useState(null);
-
     const handleViewMembers = async (group) => {
         setViewingGroup(group);
         setViewMembersModalOpen(true);
-        setCurrentGroupMembers([]); // Clear previous
+        setCurrentGroupMembers([]);
         try {
             const response = await api.get(`/groups/members?group_id=${group.id}`);
             const { families, households } = response.data;
@@ -184,7 +228,6 @@ const Groups = () => {
                 </div>
 
                 <div className="grid md:grid-cols-2 gap-8">
-                    {/* Create Group */}
                     <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
                         <div className="flex items-center gap-4 mb-6">
                             <div className="bg-orange-100 p-3 rounded-full">
@@ -208,7 +251,6 @@ const Groups = () => {
                         </form>
                     </div>
 
-                    {/* My Groups List */}
                     <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
                         <div className="flex items-center gap-4 mb-6">
                             <div className="bg-blue-100 p-3 rounded-full">
@@ -220,48 +262,91 @@ const Groups = () => {
 
                         <div className="space-y-3 max-h-60 overflow-y-auto pr-2 mb-6">
                             {groups.map(group => {
-                                const isAdmin = group.admin_id === user.id;
+                                const isAdmin = group.admin_ids?.includes(user.id) || group.admin_id === user.id;
+                                const isEditing = editingGroupId === group.id;
+
                                 return (
-                                    <div key={group.id} className="flex justify-between items-center p-3 border border-gray-100 rounded-lg hover:bg-gray-50">
-                                        <span className="font-medium text-gray-700">{group.name}</span>
-                                        <div className="flex items-center gap-2">
-                                            <button
-                                                onClick={() => handleViewMembers(group)}
-                                                className="p-1 text-gray-400 hover:text-blue-500 transition rounded-full hover:bg-blue-50"
-                                                title="View Members"
-                                            >
-                                                <Users className="w-4 h-4" />
-                                            </button>
-                                            {isAdmin ? (
-                                                <>
-                                                    <button
-                                                        onClick={() => shareGroup(group)}
-                                                        className="p-1 text-gray-400 hover:text-blue-500 transition rounded-full hover:bg-blue-50 relative"
-                                                        title="Copy Invite Link"
-                                                    >
-                                                        {copiedId === group.id ? (
-                                                            <span className="text-xs font-bold text-green-600">Copied!</span>
-                                                        ) : (
-                                                            <Copy className="w-4 h-4" />
-                                                        )}
-                                                    </button>
-                                                    <button
-                                                        onClick={() => deleteGroup(group.id)}
-                                                        className="p-1 text-gray-400 hover:text-red-500 transition rounded-full hover:bg-red-50"
-                                                        title="Delete Group"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </button>
-                                                </>
+                                    <div key={group.id} className="flex flex-col p-3 border border-gray-100 rounded-lg hover:bg-gray-50 gap-2">
+                                        <div className="flex justify-between items-center">
+                                            {isEditing ? (
+                                                <input
+                                                    type="text"
+                                                    className="flex-1 p-1 border border-orange-300 rounded outline-none text-sm"
+                                                    value={editingGroupName}
+                                                    onChange={(e) => setEditingGroupName(e.target.value)}
+                                                    autoFocus
+                                                />
                                             ) : (
-                                                <button
-                                                    onClick={() => confirmLeaveGroup(group)}
-                                                    className="p-1 text-gray-400 hover:text-red-500 transition rounded-full hover:bg-red-50"
-                                                    title="Leave Group"
-                                                >
-                                                    <LogOut className="w-4 h-4" />
-                                                </button>
+                                                <span className="font-medium text-gray-700">{group.name}</span>
                                             )}
+                                            <div className="flex items-center gap-2">
+                                                {isEditing ? (
+                                                    <>
+                                                        <button
+                                                            onClick={() => updateGroup(group.id, { name: editingGroupName })}
+                                                            className="text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700"
+                                                        >
+                                                            Save
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setEditingGroupId(null)}
+                                                            className="text-xs bg-gray-400 text-white px-2 py-1 rounded hover:bg-gray-500"
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <button
+                                                            onClick={() => handleViewMembers(group)}
+                                                            className="p-1 text-gray-400 hover:text-blue-500 transition rounded-full hover:bg-blue-50"
+                                                            title="View Members"
+                                                        >
+                                                            <Users className="w-4 h-4" />
+                                                        </button>
+                                                        {isAdmin ? (
+                                                            <>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setEditingGroupId(group.id);
+                                                                        setEditingGroupName(group.name);
+                                                                    }}
+                                                                    className="p-1 text-gray-400 hover:text-orange-500 transition rounded-full hover:bg-orange-50"
+                                                                    title="Edit Group Name"
+                                                                >
+                                                                    <Pencil className="w-4 h-4" />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => shareGroup(group)}
+                                                                    className="p-1 text-gray-400 hover:text-blue-500 transition rounded-full hover:bg-blue-50 relative"
+                                                                    title="Copy Invite Link"
+                                                                >
+                                                                    {copiedId === group.id ? (
+                                                                        <span className="text-xs font-bold text-green-600">Copied!</span>
+                                                                    ) : (
+                                                                        <Copy className="w-4 h-4" />
+                                                                    )}
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => deleteGroup(group.id)}
+                                                                    className="p-1 text-gray-400 hover:text-red-500 transition rounded-full hover:bg-red-50"
+                                                                    title="Delete Group"
+                                                                >
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                </button>
+                                                            </>
+                                                        ) : (
+                                                            <button
+                                                                onClick={() => confirmLeaveGroup(group)}
+                                                                className="p-1 text-gray-400 hover:text-red-500 transition rounded-full hover:bg-red-50"
+                                                                title="Leave Group"
+                                                            >
+                                                                <LogOut className="w-4 h-4" />
+                                                            </button>
+                                                        )}
+                                                    </>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 );
@@ -303,7 +388,6 @@ const Groups = () => {
                 )}
             </div>
 
-            {/* Members Modal */}
             {viewMembersModalOpen && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
                     <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 transform transition-all scale-100">
@@ -330,7 +414,7 @@ const Groups = () => {
                                                         <p className="font-medium text-gray-800">{member.name}</p>
                                                         <p className="text-xs text-gray-500">Household</p>
                                                     </div>
-                                                    {viewingGroup?.admin_id === user.id && (
+                                                    {(viewingGroup?.admin_ids?.includes(user.id) || viewingGroup?.admin_id === user.id) && (
                                                         <button
                                                             onClick={() => {
                                                                 setManageHouseholdId(member.id);
@@ -343,21 +427,33 @@ const Groups = () => {
                                                     )}
                                                 </div>
                                                 <div className="pl-14 space-y-2">
-                                                    {member.members.map(fam => (
-                                                        <div key={fam.id} className="flex items-center gap-2 text-sm text-gray-600">
-                                                            {fam.picture ? (
-                                                                <img src={fam.picture} alt={fam.name} className="w-6 h-6 rounded-full object-cover" />
-                                                            ) : (
-                                                                <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-medium">
-                                                                    {fam.name.charAt(0)}
-                                                                </div>
-                                                            )}
-                                                            <span>{fam.name}</span>
-                                                            {viewingGroup?.admin_id === fam.id && (
-                                                                <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-medium">Admin</span>
-                                                            )}
-                                                        </div>
-                                                    ))}
+                                                    {member.members.map(fam => {
+                                                        const isMemberAdmin = viewingGroup?.admin_ids?.includes(fam.id) || viewingGroup?.admin_id === fam.id;
+                                                        const canManageAdmins = viewingGroup?.admin_ids?.includes(user.id) || viewingGroup?.admin_id === user.id;
+                                                        return (
+                                                            <div key={fam.id} className="flex items-center gap-2 text-sm text-gray-600">
+                                                                {fam.picture ? (
+                                                                    <img src={fam.picture} alt={fam.name} className="w-6 h-6 rounded-full object-cover" />
+                                                                ) : (
+                                                                    <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-medium">
+                                                                        {fam.name.charAt(0)}
+                                                                    </div>
+                                                                )}
+                                                                <span>{fam.name}</span>
+                                                                {isMemberAdmin && (
+                                                                    <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-medium">Admin</span>
+                                                                )}
+                                                                {canManageAdmins && fam.id !== user.id && (
+                                                                    <button
+                                                                        onClick={() => toggleAdmin(viewingGroup, fam.id, isMemberAdmin)}
+                                                                        className="ml-auto text-[10px] text-blue-600 hover:underline"
+                                                                    >
+                                                                        {isMemberAdmin ? 'Remove Admin' : 'Make Admin'}
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
                                                 </div>
                                             </div>
                                         );
@@ -375,8 +471,16 @@ const Groups = () => {
                                                 <p className="font-medium text-gray-800">{member.name}</p>
                                                 <p className="text-xs text-gray-500">{member.email}</p>
                                             </div>
-                                            {viewingGroup?.admin_id === member.id && (
+                                            {(viewingGroup?.admin_ids?.includes(member.id) || viewingGroup?.admin_id === member.id) && (
                                                 <span className="ml-auto text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-medium">Admin</span>
+                                            )}
+                                            {(viewingGroup?.admin_ids?.includes(user.id) || viewingGroup?.admin_id === user.id) && member.id !== user.id && (
+                                                <button
+                                                    onClick={() => toggleAdmin(viewingGroup, member.id, viewingGroup?.admin_ids?.includes(member.id) || viewingGroup?.admin_id === member.id)}
+                                                    className="text-xs text-blue-600 hover:underline ml-2"
+                                                >
+                                                    {(viewingGroup?.admin_ids?.includes(member.id) || viewingGroup?.admin_id === member.id) ? 'Remove Admin' : 'Make Admin'}
+                                                </button>
                                             )}
                                         </div>
                                     );
@@ -396,7 +500,7 @@ const Groups = () => {
                 user={user}
                 refreshUser={refreshUser}
                 householdId={manageHouseholdId}
-                isAdmin={viewingGroup?.admin_id === user.id}
+                isAdmin={viewingGroup?.admin_ids?.includes(user.id) || viewingGroup?.admin_id === user.id}
                 groupId={viewingGroup?.id}
             />
         </div>

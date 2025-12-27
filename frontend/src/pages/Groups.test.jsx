@@ -30,8 +30,8 @@ describe('Groups Page', () => {
         // Default API mocks
         api.get.mockResolvedValue({
             data: [
-                { id: 'g1', name: 'Family Group', admin_id: 'user1', join_code: 'CODE123' },
-                { id: 'g2', name: 'Other Group', admin_id: 'user2' } // User not in this one
+                { id: 'g1', name: 'Family Group', admin_ids: ['user1'], join_code: 'CODE123' },
+                { id: 'g2', name: 'Other Group', admin_ids: ['user2'] } // User not in this one
             ]
         });
     });
@@ -102,7 +102,7 @@ describe('Groups Page', () => {
 
         api.get.mockResolvedValue({
             data: [
-                { id: 'g2', name: 'Other Group', admin_id: 'admin1' }
+                { id: 'g2', name: 'Other Group', admin_ids: ['admin1'] }
             ]
         });
 
