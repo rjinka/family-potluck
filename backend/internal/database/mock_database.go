@@ -25,6 +25,7 @@ type MockService struct {
 	GetGroupFunc                          func(ctx context.Context, id primitive.ObjectID) (*models.Group, error)
 	GetGroupByCodeFunc                    func(ctx context.Context, code string) (*models.Group, error)
 	GetGroupsFunc                         func(ctx context.Context) ([]models.Group, error)
+	UpdateGroupFunc                       func(ctx context.Context, id primitive.ObjectID, update bson.M) error
 	DeleteGroupFunc                       func(ctx context.Context, id primitive.ObjectID) error
 	CreateEventFunc                       func(ctx context.Context, event *models.Event) error
 	GetEventFunc                          func(ctx context.Context, id primitive.ObjectID) (*models.Event, error)
@@ -94,6 +95,9 @@ func (m *MockService) GetGroupByCode(ctx context.Context, code string) (*models.
 }
 func (m *MockService) GetGroups(ctx context.Context) ([]models.Group, error) {
 	return m.GetGroupsFunc(ctx)
+}
+func (m *MockService) UpdateGroup(ctx context.Context, id primitive.ObjectID, update bson.M) error {
+	return m.UpdateGroupFunc(ctx, id, update)
 }
 func (m *MockService) DeleteGroup(ctx context.Context, id primitive.ObjectID) error {
 	return m.DeleteGroupFunc(ctx, id)
