@@ -11,15 +11,27 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+func isAdmin(adminIDs []primitive.ObjectID, userID primitive.ObjectID) bool {
+	for _, id := range adminIDs {
+		if id == userID {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *Server) CreateGroup(w http.ResponseWriter, r *http.Request) {
-	var group models.Group
-	if err := json.NewDecoder(r.Body).Decode(&group); err != nil {
+	var req struct {
+		Name    string             `json:"name"`
+		AdminID primitive.ObjectID `json:"admin_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	// Check if group name already exists
-	count, err := s.DB.CountGroupsByName(context.Background(), group.Name)
+	count, err := s.DB.CountGroupsByName(context.Background(), req.Name)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -29,8 +41,13 @@ func (s *Server) CreateGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	group.ID = primitive.NewObjectID()
-	group.JoinCode = generateJoinCode()
+	group := models.Group{
+		ID:       primitive.NewObjectID(),
+		Name:     req.Name,
+		AdminIDs: []primitive.ObjectID{req.AdminID},
+		JoinCode: generateJoinCode(),
+	}
+
 	err = s.DB.CreateGroup(context.Background(), &group)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -40,7 +57,7 @@ func (s *Server) CreateGroup(w http.ResponseWriter, r *http.Request) {
 	// Update admin's family to join this group
 	err = s.DB.UpdateFamilyMember(
 		context.Background(),
-		group.AdminID,
+		req.AdminID,
 		bson.M{"$push": bson.M{"group_ids": group.ID}},
 	)
 	if err != nil {
@@ -94,8 +111,8 @@ func (s *Server) LeaveGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if group.AdminID == req.FamilyMemberID {
-		http.Error(w, "Admin cannot leave the group. Delete the group instead.", http.StatusForbidden)
+	if isAdmin(group.AdminIDs, req.FamilyMemberID) {
+		http.Error(w, "Admin cannot leave the group. Delete the group instead or remove admin status first.", http.StatusForbidden)
 		return
 	}
 
@@ -186,6 +203,58 @@ func (s *Server) GetGroup(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(group)
 }
 
+func (s *Server) UpdateGroup(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	id, err := primitive.ObjectIDFromHex(idStr)
+	if err != nil {
+		http.Error(w, "Invalid group id", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		Name     string               `json:"name"`
+		AdminIDs []primitive.ObjectID `json:"admin_ids"`
+		UserID   primitive.ObjectID   `json:"user_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Verify group exists and user is admin
+	group, err := s.DB.GetGroup(context.Background(), id)
+	if err != nil {
+		http.Error(w, "Group not found", http.StatusNotFound)
+		return
+	}
+
+	if !isAdmin(group.AdminIDs, req.UserID) {
+		http.Error(w, "Unauthorized: Only admin can update group", http.StatusForbidden)
+		return
+	}
+
+	update := bson.M{}
+	if req.Name != "" {
+		update["name"] = req.Name
+	}
+	if len(req.AdminIDs) > 0 {
+		update["admin_ids"] = req.AdminIDs
+	}
+
+	if len(update) == 0 {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	err = s.DB.UpdateGroup(context.Background(), id, bson.M{"$set": update})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
 func (s *Server) DeleteGroup(w http.ResponseWriter, r *http.Request) {
 	idStr := r.PathValue("id")
 	id, err := primitive.ObjectIDFromHex(idStr)
@@ -212,7 +281,7 @@ func (s *Server) DeleteGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if group.AdminID != adminID {
+	if !isAdmin(group.AdminIDs, adminID) {
 		http.Error(w, "Unauthorized: Only admin can delete group", http.StatusForbidden)
 		return
 	}

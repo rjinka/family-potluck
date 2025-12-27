@@ -479,7 +479,7 @@ const Dashboard = () => {
                                                 </button>
 
                                                 {/* Admin/Host Controls */}
-                                                {(userGroups.find(g => g.id === selectedGroupId)?.admin_id === user?.id || event.host_id === user?.id || (event.host_household_id && event.host_household_id === user?.household_id)) && (
+                                                {(userGroups.find(g => g.id === selectedGroupId)?.admin_ids?.includes(user?.id) || userGroups.find(g => g.id === selectedGroupId)?.admin_id === user?.id || event.host_id === user?.id || (event.host_household_id && event.host_household_id === user?.household_id)) && (
                                                     <div className="flex gap-2 justify-end">
                                                         {event.recurrence && (
                                                             <button
@@ -508,7 +508,7 @@ const Dashboard = () => {
                                                                 <CheckCircle className="w-5 h-5" />
                                                             </button>
                                                         )}
-                                                        {userGroups.find(g => g.id === selectedGroupId)?.admin_id === user?.id && (
+                                                        {(userGroups.find(g => g.id === selectedGroupId)?.admin_ids?.includes(user?.id) || userGroups.find(g => g.id === selectedGroupId)?.admin_id === user?.id) && (
                                                             <button
                                                                 onClick={() => handleDeleteEvent(event.id)}
                                                                 className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"

@@ -51,10 +51,11 @@ type Household struct {
 }
 
 type Group struct {
-	ID       primitive.ObjectID `json:"id" bson:"_id,omitempty"`
-	Name     string             `json:"name" bson:"name"`
-	AdminID  primitive.ObjectID `json:"admin_id" bson:"admin_id"`
-	JoinCode string             `json:"join_code" bson:"join_code"`
+	ID       primitive.ObjectID   `json:"id" bson:"_id,omitempty"`
+	Name     string               `json:"name" bson:"name"`
+	AdminIDs []primitive.ObjectID `json:"admin_ids" bson:"admin_ids"`
+	AdminID  primitive.ObjectID   `json:"admin_id,omitempty" bson:"admin_id,omitempty"` // Legacy field
+	JoinCode string               `json:"join_code" bson:"join_code"`
 }
 
 type Event struct {
